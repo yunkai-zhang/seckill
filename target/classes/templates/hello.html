@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<!--要加上thymeleaf的命名空间；这里thymleaf的语法用法就不细说了-->
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>测试项目</title>
+</head>
+<body>
+<!--这里显示controller传的一个参数名为“name”的参数值-->
+<p th:text="'hello  '+${name}"></p>
+</body>
+</html>
