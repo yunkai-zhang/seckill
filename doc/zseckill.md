@@ -387,4 +387,462 @@ public class MD5Util {
 
 ### 逆向工程
 
-https://www.bilibili.com/video/BV1sf4y1L7KE?p=6&spm_id_from=pageDriver
+要通过逆向工程，对之前生成的t_user表单，生成对应的pojo mapper mapper.xml等文件。会使用MybatisPlus附带的逆向生成工具。
+
+#### 再次创建一个项目
+
+这个项目就是为了实现逆向工程。建议把逆向工程单独作为一个项目，因为后期会有很多项目需要生成不同的工具；比如不同的项目中有不同的数据库，数据库中有不同的表，每张表生成的都是不一样的。把逆向工程单独做项目的话，以后每次修改一下参数，就能逆向生成！
+
+1，新建项目：
+
+![image-20220326190432147](zseckill.assets/image-20220326190432147.png)
+
+![image-20220326190505614](zseckill.assets/image-20220326190505614.png)
+
+2，删掉不要的文件：
+
+![image-20220326190936064](zseckill.assets/image-20220326190936064.png)
+
+- 注意不要删掉iml文件。
+
+#### 项目依赖
+
+1，去mybatisplus官网，复制mybatis-plus依赖；黏贴到pom中:![image-20220326191157905](zseckill.assets/image-20220326191157905.png)
+
+```xml
+<dependency>
+    <groupId>com.baomidou</groupId>
+    <artifactId>mybatis-plus-boot-starter</artifactId>
+    <version>3.4.0</version>
+</dependency>
+
+```
+
+- 使用和视频教程相同版本
+
+![image-20220326191424266](zseckill.assets/image-20220326191424266.png)
+
+2，添加代码生成器依赖：
+
+```xml
+<dependency>
+    <groupId>com.baomidou</groupId>
+    <artifactId>mybatis-plus-generator</artifactId>
+    <version>3.4.0</version>
+</dependency>
+```
+
+- 使用视频教程的版本
+
+3，添加模板引擎的依赖：
+
+```xml
+<dependency>
+    <groupId>org.freemarker</groupId>
+    <artifactId>freemarker</artifactId>
+    <version>2.3.30</version>
+</dependency>
+
+```
+
+- 这里采用视频教程用的freemarker引擎；版本号保持一致。
+- 模板引擎定义：[浅谈模板引擎 - 木的树 - 博客园 (cnblogs.com)](https://www.cnblogs.com/dojo-lzz/p/5518474.html)
+
+4，添加数据库的依赖：
+
+```xml
+<!--		mysql驱动的依赖;设置范围为“运行时才生效”-->
+		<dependency>
+			<groupId>mysql</groupId>
+			<artifactId>mysql-connector-java</artifactId>
+			<scope>runtime</scope>
+		</dependency>
+```
+
+
+
+#### 建立并使用 “实现逆向生成的工具类”
+
+1，一般我们可以把官网的工具类改成我们自己想要的，修改官方工具类为如下：
+
+```java
+package com.zhangyun.generator;
+
+import com.baomidou.mybatisplus.core.exceptions.MybatisPlusException;
+import com.baomidou.mybatisplus.core.toolkit.StringPool;
+import com.baomidou.mybatisplus.core.toolkit.StringUtils;
+import com.baomidou.mybatisplus.generator.AutoGenerator;
+import com.baomidou.mybatisplus.generator.InjectionConfig;
+import com.baomidou.mybatisplus.generator.config.*;
+import com.baomidou.mybatisplus.generator.config.po.TableInfo;
+import com.baomidou.mybatisplus.generator.config.rules.DateType;
+import com.baomidou.mybatisplus.generator.config.rules.NamingStrategy;
+import com.baomidou.mybatisplus.generator.engine.FreemarkerTemplateEngine;
+
+import java.util.*;
+
+// 演示例子，执行 main 方法控制台输入模块表名回车自动生成对应项目目录中
+public class CodeGenerator {
+
+    /**
+     * <p>
+     * 读取控制台内容
+     * </p>
+     */
+    public static String scanner(String tip) {
+        //控制台输入
+        Scanner scanner = new Scanner(System.in);
+        StringBuilder help = new StringBuilder();
+        help.append("请输入" + tip + "：");
+        System.out.println(help.toString());
+        if (scanner.hasNext()) {
+            String ipt = scanner.next();
+            if (StringUtils.isNotBlank(ipt)) {
+                return ipt;
+            }
+        }
+        throw new MybatisPlusException("请输入正确的" + tip + "！");
+    }
+
+    public static void main(String[] args) {
+        // 代码生成器
+        AutoGenerator mpg = new AutoGenerator();
+
+        // 全局配置
+        GlobalConfig gc = new GlobalConfig();
+        //获取当前项目的路径
+        String projectPath = System.getProperty("user.dir");
+        //设置输出路径，在当前项目路径下
+        gc.setOutputDir(projectPath + "/src/main/java");
+        //作者
+        gc.setAuthor("zhangyun");
+        //打开输出目录
+        gc.setOpen(false);
+        //xml开启BaseResultMap
+        gc.setBaseResultMap(true);
+        //xml开启BaseColumnList
+        gc.setBaseColumnList(true);
+        //日期格式采用Date
+        gc.setDateType(DateType.ONLY_DATE);
+        // gc.setSwagger2(true); 实体属性 Swagger2 注解
+        mpg.setGlobalConfig(gc);
+
+        // 数据源配置
+        DataSourceConfig dsc = new DataSourceConfig();
+        //这里url中的数据库名必须为本教程之前建立的本地数据库名
+        dsc.setUrl("jdbc:mysql://localhost:3306/seckill?useUnicode=true&characterEncoding=utf8&serverTimeZone=Asia"+"/Shanghai");
+        // dsc.setSchemaName("public");
+        dsc.setDriverName("com.mysql.cj.jdbc.Driver");//我：我在包路径中加上了cj，5.7及以后的mysql不需要cj
+        dsc.setUsername("root");
+        dsc.setPassword("123456");
+        mpg.setDataSource(dsc);
+
+        // 包配置
+        PackageConfig pc = new PackageConfig();
+        //pc.setModuleName(scanner("模块名"));
+        //设置我们生成的Mapper Service等分别对应在哪个包下面：我们都放在com.zhangyun.zseckill下，这是我们秒杀项目的启动类所在目录
+        pc.setParent("com.zhangyun.zseckill")
+                .setEntity("pojo")
+                .setMapper("mapper")
+                .setService("service")
+                .setServiceImpl("service.impl")
+                .setController("controller");
+        mpg.setPackageInfo(pc);
+
+        // 自定义配置
+        InjectionConfig cfg = new InjectionConfig() {
+            @Override
+            public void initMap() {
+                // to do nothing
+                Map<String,Object> map = new HashMap<>();
+                map.put("date1","1.0.0");
+                this.setMap(map);
+            }
+        };
+
+        // 如果模板引擎是 freemarker
+        String templatePath = "/templates/mapper.xml.ftl";
+        // 如果模板引擎是 velocity
+        // String templatePath = "/templates/mapper.xml.vm";
+
+        // 自定义输出配置
+        List<FileOutConfig> focList = new ArrayList<>();
+        // 自定义配置会被优先输出
+        focList.add(new FileOutConfig(templatePath) {
+            @Override
+            public String outputFile(TableInfo tableInfo) {
+                // 自定义输出文件名 ， 如果你 Entity 设置了前后缀、此处注意 xml 的名称会跟着发生变化！！
+                return projectPath + "/src/main/resources/mapper/" +  tableInfo.getEntityName() + "Mapper" + StringPool.DOT_XML;
+            }
+        });
+        /*
+        cfg.setFileCreate(new IFileCreate() {
+            @Override
+            public boolean isCreate(ConfigBuilder configBuilder, FileType fileType, String filePath) {
+                // 判断自定义文件夹是否需要创建
+                checkDir("调用默认方法创建的目录，自定义目录用");
+                if (fileType == FileType.MAPPER) {
+                    // 已经生成 mapper 文件判断存在，不想重新生成返回 false
+                    return !new File(filePath).exists();
+                }
+                // 允许生成模板文件
+                return true;
+            }
+        });
+        */
+        cfg.setFileOutConfigList(focList);
+        mpg.setCfg(cfg);
+
+        // 配置模板
+        TemplateConfig templateConfig = new TemplateConfig()
+        // 配置自定义输出模板
+        //指定自定义模板路径，注意不要带上.ftl/.vm, 会根据使用的模板引擎自动识别
+                //以下代表我们的Mapper层，service层等各层
+                .setEntity("templates/entity2.java")
+                .setMapper("templates/mapper2.java")
+                .setService("templates/service2.java")
+                .setServiceImpl("templates/serviceImpl2.java")
+                .setController("templates/controller2.java");
+
+        templateConfig.setXml(null);
+        mpg.setTemplate(templateConfig);
+
+        // 策略配置
+        StrategyConfig strategy = new StrategyConfig();
+        //数据库表映射到实体的命名策略：下划线转驼峰
+        strategy.setNaming(NamingStrategy.underline_to_camel);
+        //数据库表字段映射到实体的命名策略
+        strategy.setColumnNaming(NamingStrategy.underline_to_camel);
+        //lombok模型：因为整个seckill要用lombok，那么CodeGenerator就会在帮我们生成的pojo上面，附带上lombok的注解
+        strategy.setEntityLombokModel(true);
+        //生成 @RestController 控制器
+        // strategy.setRestControllerStyle(true);
+        //多个表之间可以用逗号分割，就是说它可以一下子生成一个数据库中的多张表
+        strategy.setInclude(scanner("表名，多个英文逗号分割").split(","));
+        strategy.setControllerMappingHyphenStyle(true);
+        //表前缀：生成的pojo类会把前缀去掉，比如t_user表，就只会生成User类
+        strategy.setTablePrefix("t_");
+        mpg.setStrategy(strategy);
+        mpg.setTemplateEngine(new FreemarkerTemplateEngine());
+        mpg.execute();
+    }
+
+}
+
+```
+
+- 注意，数据库名，和mysql连接的账号密码必须为本地mysql有的。本文“实现登录功能”那做了数据库创建。
+
+2，启动工具类，输入表名；发生错误：
+
+![image-20220326221920234](zseckill.assets/image-20220326221920234.png)
+
+- 这是因为正常来说，template中是entity1.java mapper1.java等，但是我这设置为2；也就是说它的模板我们可以自定义，但是我们刚刚没定义好。
+- 想定义好模板，就得先找到模板
+
+3，找模板：
+
+把项目视图调为“project”：
+
+![image-20220326222339998](zseckill.assets/image-20220326222339998.png)
+
+在External Libraries中可以看到templates中有对应的ftl模板（即freemarker模板引擎的模板）：
+
+![image-20220326222856412](zseckill.assets/image-20220326222856412.png)
+
+4，把项目视图切换为project files，并把模板放到resource/template目录下
+
+![image-20220326223056112](zseckill.assets/image-20220326223056112.png)
+
+5，把模板名改成CodeGenerator中写的样子；并且发现CodeGenerator中没用Mapper.xml模板，所以删掉resource/template中的Mapper.xml模板：
+
+![image-20220326223620630](zseckill.assets/image-20220326223620630.png)
+
+- 网友说不用改也行，不过我还是改了
+
+- 网友：老师这样做的意思是我们可以自定义想要的模板
+
+6，尝试重新运行CodeGenerator；成功：
+
+![image-20220326224227719](zseckill.assets/image-20220326224227719.png)
+
+7，查看generator项目的com.zhangyun包下，能看到生成的文件：
+
+![image-20220326224627726](zseckill.assets/image-20220326224627726.png)
+
+8，把上图逆向工程项目中生成的文件，拷贝进zseckill项目：
+
+![image-20220326224823847](zseckill.assets/image-20220326224823847.png)
+
+- 直接在zseckill目录下黏贴，idea会智能自动把文件放入相应文件夹。
+
+9，不要忘记，虽然CodeGenerator的模板没有指定Mapper.xml的模板，但Mapper.xml还是生成了，把它也拷贝进zseckill项目的对应目录：
+
+![image-20220326225147249](zseckill.assets/image-20220326225147249.png)
+
+![image-20220326225231506](zseckill.assets/image-20220326225231506.png)
+
+10，检查复制进zseckill中的文件，包名是否都正常
+
+11，我和网友理解：逆向工程就是代码生成器
+
+### 功能开发前期准备工作
+
+#### 登录-页面跳转
+
+1，创建控制器LoginController：
+
+![image-20220326230547265](zseckill.assets/image-20220326230547265.png)
+
+```java
+package com.zhangyun.zseckill.controller;
+
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/login")
+//用于打印日志；免去一系列复杂的日志设置
+@Slf4j
+public class LoginController {
+
+    //跳转登录页面
+    @RequestMapping("/toLogin")
+    public String toLogin(){
+        return "login";
+    }
+}
+
+```
+
+- 生成这么多类，不一定都会用；项目完成后，用不到的类会被删掉；这里生成这么多类，只是因为逆向工程统一生成了，但是我用不一定会用。
+
+2，准备项目的静态资源，直接从开源项目拷贝：
+
+![image-20220326231034432](zseckill.assets/image-20220326231034432.png)
+
+3，编写前端；直接复制进来，不细说；重点是后端：
+
+![image-20220326231146882](zseckill.assets/image-20220326231146882.png)
+
+```html
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>登录</title>
+<!--    引入一系列静态资源-->
+    <!-- jquery -->
+    <script type="text/javascript" th:src="@{/js/jquery.min.js}"></script>
+    <!-- bootstrap -->
+    <link rel="stylesheet" type="text/css" th:href="@{/bootstrap/css/bootstrap.min.css}"/>
+    <script type="text/javascript" th:src="@{/bootstrap/js/bootstrap.min.js}"></script>
+    <!-- jquery-validator：用于校验 -->
+    <script type="text/javascript" th:src="@{/jquery-validation/jquery.validate.min.js}"></script>
+    <script type="text/javascript" th:src="@{/jquery-validation/localization/messages_zh.min.js}"></script>
+    <!-- layer：layui是做一些弹框的 -->
+    <script type="text/javascript" th:src="@{/layer/layer.js}"></script>
+    <!-- md5.js ：做加密-->
+    <script type="text/javascript" th:src="@{/js/md5.min.js}"></script>
+    <!-- common.js -->
+    <script type="text/javascript" th:src="@{/js/common.js}"></script>
+</head>
+<body>
+<form name="loginForm" id="loginForm" method="post" style="width:50%; margin:0 auto">
+
+    <h2 style="text-align:center; margin-bottom: 20px">用户登录</h2>
+
+    <div class="form-group">
+        <div class="row">
+            <label class="form-label col-md-4">请输入手机号码</label>
+            <div class="col-md-5">
+                <input id="mobile" name="mobile" class="form-control" type="text" placeholder="手机号码" required="true"
+                />
+                <!--             取消位数限制          minlength="11" maxlength="11"-->
+            </div>
+            <div class="col-md-1">
+            </div>
+        </div>
+    </div>
+
+    <div class="form-group">
+        <div class="row">
+            <label class="form-label col-md-4">请输入密码</label>
+            <div class="col-md-5">
+                <input id="password" name="password" class="form-control" type="password" placeholder="密码"
+                       required="true"
+                />
+                <!--             取消位数限制            minlength="6" maxlength="16"-->
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-5">
+            <button class="btn btn-primary btn-block" type="reset" onclick="reset()">重置</button>
+        </div>
+        <div class="col-md-5">
+            <button class="btn btn-primary btn-block" type="submit" onclick="login()">登录</button>
+        </div>
+    </div>
+</form>
+</body>
+<script>
+    function login() {
+        $("#loginForm").validate({
+            submitHandler: function (form) {
+                doLogin();
+            }
+        });
+    }
+
+    function doLogin() {
+        g_showLoading();
+
+        var inputPass = $("#password").val();
+        var salt = g_passsword_salt;
+        var str = "" + salt.charAt(0) + salt.charAt(2) + inputPass + salt.charAt(5) + salt.charAt(4);
+        var password = md5(str);
+
+       
+        $.ajax({
+            url: "/login/doLogin",
+            type: "POST",
+            data: {
+                mobile: $("#mobile").val(),
+                password: password
+            },
+            success: function (data) {
+                layer.closeAll();
+                if (data.code == 200) {
+                    layer.msg("成功");
+                    console.log(data);
+                    document.cookie = "userTicket=" + data.object;
+                    window.location.href = "/goods/toList";
+                } else {
+                    layer.msg(data.message);
+                }
+            },
+            error: function () {
+                layer.closeAll();
+            }
+        });
+    }
+</script>
+</html>
+```
+
+- 本项目的各个html页面，依赖resource/static下导入的静态资源
+- 可以看到静态资源里的common.js中的g_passsword_salt（盐）的值，和MD5加密中用得到的盐一致，这体现后端得有前端的盐。
+  - 前端盐的用法，和后端也一样。
+
+4，LoginController中编写dologin方法：
+
+```java
+```
+
+https://www.bilibili.com/video/BV1sf4y1L7KE?p=7&spm_id_from=pageDriver
+
+7.30
