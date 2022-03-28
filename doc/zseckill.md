@@ -997,18 +997,13 @@ Caused by: org.springframework.beans.factory.NoSuchBeanDefinitionException: No q
 ```java
 package com.zhangyun.zseckill.vo;
 
-import com.sun.istack.internal.NotNull;
 import lombok.Data;
 
 @Data
 public class LoginVo {
-
-    @NotNull
-//    @IsMobile
+    
     private String mobile;
-
-    @NotNull
-//    @Length(min = 32)
+    
     private String password;
 }
 
@@ -1249,4 +1244,283 @@ public class ValidatorUtil {
 
 ### 自定义注解参数校验
 
-https://www.bilibili.com/video/BV1sf4y1L7KE?p=10&spm_id_from=pageDriver
+#### 使用非自定义注解
+
+1，登录过程中做了很多的参数校验，可能在其他类中也可能有类似这些参数校验的健壮性判断；如果每个类都去准备这些健壮性判断的话，会显得很麻烦；所以我们用js303做参数校验，从而简化代码。
+
+2，pom导入validation组件的依赖：
+
+```xml
+<!--        validation组件-->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+```
+
+- 记住复制进依赖后，点击idea右上角的蓝色m，把依赖导入项目
+
+3，在`LoginController.java`中，方法的参数处加上注解`@Valid`；有了这个注解后，方法的入参就会被进行相应的校验:
+
+![image-20220328200748717](zseckill.assets/image-20220328200748717.png)
+
+4，进入参数loginvo所属的类`LoginVo`中，添加注解：
+
+![image-20220328201923443](zseckill.assets/image-20220328201923443.png)
+
+- 注意：@notnull导包的时候不要导错了。
+
+5，constrain包点进去，可以看到有各种可用注解：
+
+![image-20220328202021404](zseckill.assets/image-20220328202021404.png)
+
+#### 自定义注解
+
+1，现在尝试自定义注解来实现校验；在LoginVo.java的mobile参数上，加一个@IsMobile()注解；我们将实现该注解，来自动完成原先由ValidatorUtil.java完成的功能：
+
+![image-20220328202256743](zseckill.assets/image-20220328202256743.png)
+
+2，新建包，再新建注解`IsMobile`：
+
+![image-20220328204707116](zseckill.assets/image-20220328204707116.png)
+
+- 注意：注解名大写
+
+3，自定义注解其实很简单，把@notnull注解中有用的的东西，拷贝进IsMobile注解：
+
+![image-20220328203231237](zseckill.assets/image-20220328203231237.png)
+
+- @Repeatable没用，就别拷贝来
+
+4，编写自定义的IsMobile注解的内容：
+
+```java
+package com.zhangyun.zseckill.validator;
+
+import javax.validation.Constraint;
+import javax.validation.Payload;
+import java.lang.annotation.*;
+
+/**
+ * 验证手机号
+ * */
+@Target({ElementType.METHOD, ElementType.FIELD, ElementType.ANNOTATION_TYPE, ElementType.CONSTRUCTOR, ElementType.PARAMETER, ElementType.TYPE_USE})
+@Retention(RetentionPolicy.RUNTIME)
+@Documented
+@Constraint(
+        //准备一个对应的校验的类，类中定义自己校验的规则
+        validatedBy = {IsMobileValidator.class}
+)
+public @interface IsMobile {
+    //自己加一个属性，要求是否必填；默认必填
+    boolean required() default true;
+
+    //消息就是报错的消息
+    String message() default "手机号码格式错误";
+
+    Class<?>[] groups() default {};
+
+    Class<? extends Payload>[] payload() default {};
+}
+
+```
+
+5，编写validatedBy需要的指定自定义校验规则的类IsMobileValidator：
+
+![image-20220328205047869](zseckill.assets/image-20220328205047869.png)
+
+```java
+package com.zhangyun.zseckill.validator;
+
+import com.zhangyun.zseckill.utils.ValidatorUtil;
+import org.thymeleaf.util.StringUtils;
+
+import javax.validation.ConstraintValidator;
+import javax.validation.ConstraintValidatorContext;
+
+/**
+ * 手机号码校验规则
+ *
+ * @author: 张云
+ * @ClassName: IsMobileValidator
+ */
+public class IsMobileValidator implements ConstraintValidator<IsMobile, String> {
+
+    //记录是否是必填的
+    private boolean required = false;
+
+    //初始化参数，即拿到使用注解时填的参数的值
+    @Override
+    public void initialize(IsMobile constraintAnnotation) {
+//        ConstraintValidator.super.initialize(constraintAnnotation);
+        //获取到使用注解时填的required值为true或false
+        required = constraintAnnotation.required();
+    }
+
+    //（根据参数）编写校验规则
+    @Override
+    public boolean isValid(String s, ConstraintValidatorContext constraintValidatorContext) {
+        if (required) {//如果写注解时设置的是必填，那么通过之前自己编写的校验类工具ValidatorUtil来返回是否是合格手机号
+            return ValidatorUtil.isMobile(s);
+        } else {//非必填的话
+            if (StringUtils.isEmpty(s)) {//因为是非必填，如果是空就可以直接返回true
+                return true;
+            } else {//非必填，但是填了，那么就需要通过之前自己编写的校验类工具ValidatorUtil来返回是否是合格手机号
+                return ValidatorUtil.isMobile(s);
+            }
+        }
+    }
+}
+
+```
+
+6，注释掉service层关于电话号码校验的代码，因为自定义的IsMobile注解已经实现相应功能：
+
+![image-20220328210836998](zseckill.assets/image-20220328210836998.png)
+
+7，重启项目，输入不合法的电话号，执行登录操作：
+
+前端可以看到doLogin请求失败了：
+
+![image-20220328211610703](zseckill.assets/image-20220328211610703.png)
+
+后台idea报warning，这个warning正是我们加注解的结果，打印的也是IsMobile注解规定的值：
+
+```
+2022-03-28 21:14:58.428  WARN 69052 --- [nio-8080-exec-8] .w.s.m.s.DefaultHandlerExceptionResolver : Resolved [org.springframework.validation.BindException: org.springframework.validation.BeanPropertyBindingResult: 1 errors<EOL>Field error in object 'loginVo' on field 'mobile': rejected value [111]; codes [IsMobile.loginVo.mobile,IsMobile.mobile,IsMobile.java.lang.String,IsMobile]; arguments [org.springframework.context.support.DefaultMessageSourceResolvable: codes [loginVo.mobile,mobile]; arguments []; default message [mobile],true]; default message [手机号码格式错误]]
+```
+
+8，现在错误提示没在页面上展示，而是在控制输出台展示：
+
+- 因为异常只是普通抛出，没有正确处理并让前端显示
+- 后面我们要定义异常，把这个异常信息正确地展示到前端页面
+
+#### 异常处理
+
+1，上一小节的BindException，应该被捕获，然后抛出对应的信息，并让前端展示；我们通过ControllerAdvice和ExceptionHandler两个组合注解来处理，因为虽然这两个组合注解只能处理控制器抛出的异常，但是这两个组合注解的自由度更大。
+
+- 有人想用ErrorException类处理的话，也可以；errorcontroller类可以处理所有位置的异常，包括未进入控制器的异常。
+- ControllerAdvice可以定义多个拦截方法，拦截不同的异常类，并抛出对应的异常信息，自由度更高。
+
+2，创建处理异常的包exception，包中定义一个类GlobalException（全局异常）：
+
+![image-20220328234741846](zseckill.assets/image-20220328234741846.png)
+
+```java
+package com.zhangyun.zseckill.exception;
+
+import com.zhangyun.zseckill.vo.RespBeanEnum;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+/**
+ * 全局异常
+ *
+ * @author: zhangyun
+ * @ClassName: GlobalException
+ */
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class GlobalException extends RuntimeException {
+
+    //全局异常中放返回的responsebean的枚举，因为该枚举里存了相应的状态码和对应的信息，有它就够了。
+    private RespBeanEnum respBeanEnum;
+
+}
+```
+
+2，创建异常处理类GlobalExceptionHandler：
+
+```java
+package com.zhangyun.zseckill.exception;
+
+import com.zhangyun.zseckill.vo.RespBean;
+import com.zhangyun.zseckill.vo.RespBeanEnum;
+import org.springframework.validation.BindException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+
+/**
+ * 全局异常处理类
+ *
+ * @author: zhangyun
+ * @ClassName: GlobalExceptionHandler
+ */
+//类上加了@RestControllerAdvice，那么返回的就是一个responsebody，就不用在方法上具体返回
+@RestControllerAdvice
+//我：类名虽然叫GlobalExceptionHandler，但我认为它除了GlobalException，也会在Controller层处理其他所有各种异常
+public class GlobalExceptionHandler {
+
+    //@ExceptionHandler()括号中填入要处理的异常的类；这里选Exception.class（所有异常的父类），表示处理所有异常
+    @ExceptionHandler(Exception.class)
+    public RespBean ExceptionHandler(Exception e) {
+        //如果捕捉到的异常，属于刚刚定义的全局的异常，就返回该全局异常中的存的RespBeanEnum
+        if (e instanceof GlobalException) {
+            GlobalException exception = (GlobalException) e;
+            return RespBean.error(exception.getRespBeanEnum());
+        } else if (e instanceof BindException) {//如果捕捉到的异常是绑定异常，就返回该绑定异常的信息
+            BindException bindException = (BindException) e;//把e强制转换为BindException，好从BindException中获取前端需要的错误提示信息“手机号码格式错误”
+            //拿到一个bind_error对应的respbean；但是这个信息不够，这里的信息只是RespBeanEnum中绑定的信息“参数校验异常”，不是很符合；我们想把绑定异常抛出来的信息“手机号码格式错误”拿到
+            RespBean respBean = RespBean.error(RespBeanEnum.BIND_ERROR);
+            //之前报错提示“1 errors”，所以直接get(0)可以得到第一个也即是唯一的异常；getDefaultMessage()可以获取到默认的信息即报错打印的“手机号码格式错误”；这样就把respBean存的信息详细化了
+            respBean.setMessage("参数校验异常：" + bindException.getBindingResult().getAllErrors().get(0).getDefaultMessage());
+            //我推测：让controller层的LoginController类的doLogin，把含有BindException中的提示信息的respBean，返回给前端
+            return respBean;
+        }
+        //如果之前的异常匹配都没匹配上，就抛出RespBeanEnum中定义的默认ERROR异常（500异常是个框，服务器有问题都可以往里装）
+        System.out.println("异常信息" + e);
+        return RespBean.error(RespBeanEnum.ERROR);
+    }
+}
+
+```
+
+- 我强调：ExceptionHandler会在controller层处理 所有层发生的所有异常，前提是异常要被传到controller层。
+- ExceptionHandler的处理异常的能力来源于@RestControllerAdvice
+- 我推测：调用doLogin导致的错误，所以会让controller层的LoginController类的doLogin，把含有BindException中的提示信息的respBean，返回给前端；让前端展示错误提示。
+
+3，RespBeanEnum中添加BIND_ERROR：
+
+![image-20220329000003622](zseckill.assets/image-20220329000003622.png)
+
+4，之前UserServiceImpl代码，负责业务逻辑，也可以对他做修改：
+
+![image-20220329002217516](zseckill.assets/image-20220329002217516.png)
+
+- 但是这两处修改与bindexception无关；所以这两处修改与使用注解校验手机号后，前端无法显示Ismobile的message无关
+
+5，测试，使用错误电话号：
+
+前端收到对应message：
+
+![image-20220329002944949](zseckill.assets/image-20220329002944949.png)
+
+因为代码ExceptionHandler处理了异常，后端控制台不会打印异常：
+
+![image-20220329002855648](zseckill.assets/image-20220329002855648.png)
+
+6，测试，使用正确电话号+错误密码：
+
+前端收到对应message：
+
+![image-20220329003037892](zseckill.assets/image-20220329003037892.png)
+
+后端也没打印异常。
+
+7，我分析：
+
+- 之前前端无法显示message，并报bindingexception，所以在GlobalExceptionHandler中人为处理了bindingexception异常；
+- 发生bindingexception时，且bindingexception被传到controller层时，ExceptionHandler会返回一个message被修改过的respBean；修改的内容就是为了在message中加上之前报错提示的“手机号码格式错误“；
+- 调用doLogin引发bindingexception，导致ExceptionHandler返回的respBean，会被doLogin返回给前端，这样前端就能从respBean中解读出信息并显示在自己的页面上了。
+  - 之前bindingexception发生后，没有被处理，所以bindingexception的message无法被装进respBean传递给前端，所以前端没有错误提示。
+  - 不使用注解而只使用ValidatorUtil时，`!ValidatorUtil.isMobile(mobile)`判断手机号不合法时，会直接返回包含`RespBeanEnum.MOBILE_ERROR`信息的respBean给前端，所以前端能展示提示。
+  - 所以**重点**是：前端登录页面必须收到后端发的respBean才能正确打印各类提示信息；如果由于发生bindingexception导致respbean无法发送的话，就会导致前端无法显示，所以要手动处理bindingexception使发生bindingexception时也能给前端返回respbean。
+
+
+
+### 完善登录功能
+
+https://www.bilibili.com/video/BV1sf4y1L7KE?p=12&spm_id_from=pageDriver

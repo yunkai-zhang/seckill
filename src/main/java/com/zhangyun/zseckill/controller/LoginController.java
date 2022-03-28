@@ -9,6 +9,8 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
 
+import javax.validation.Valid;
+
 @Controller
 @RequestMapping("/login")
 //用于打印日志；免去一系列复杂的日志设置
@@ -33,7 +35,7 @@ public class LoginController {
     //既然是返回respbean，那么这里必须加上responsebody
     @ResponseBody
     //要传递参数如手机号和密码进来，就要编写一个参数vo
-    public RespBean doLogin(LoginVo loginVo){
+    public RespBean doLogin(@Valid LoginVo loginVo){
         //这里能直接使用log，是因为本类使用了lombok+sl4j注解
         //log.info("{}",loginVo);
         return userService.doLogin(loginVo);
