@@ -31,7 +31,7 @@ public class MD5Util {
     * */
     public static String inputPassToFromPass(String inputPass) {
         //这里salt.charAt是随意取的，个数随意，char的位置随意
-        String str = salt.charAt(0) + salt.charAt(2) + inputPass + salt.charAt(5) + salt.charAt(4);
+        String str = ""+salt.charAt(0) + salt.charAt(2) + inputPass + salt.charAt(5) + salt.charAt(4);
         //被md5加密的是明文密码+盐的部分 所组成的字符串
         return md5(str);
     }
@@ -44,7 +44,7 @@ public class MD5Util {
     * 这里形参里的salt，是后端拿到密文后，二次加密需要的盐；和前端加密用的盐不同；二次加密用的盐是自己随机出来的盐
     * */
     public static String fromPassToDBPass(String formPass, String salt) {
-        String str = salt.charAt(0) + salt.charAt(2) + formPass + salt.charAt(5) + salt.charAt(4);
+        String str = ""+salt.charAt(0) + salt.charAt(2) + formPass + salt.charAt(5) + salt.charAt(4);
         return md5(str);
     }
 
@@ -59,14 +59,14 @@ public class MD5Util {
         return dbPass;
     }
       //自测MD5Util
-//    public static void main(String[] args) {
-//        //打印第一次加密后的密码:ce21b747de5af71ab5c2e20ff0a60eea
-//        System.out.println(inputPassToFromPass("123456"));
-//        //打印第二次加密后的密码:0687f9701bca74827fcefcd7e743d179
-//        //我理解：这里的salt最好和第一次加密的salt取不一样，但是老师这里取一样的salt
-//        System.out.println(fromPassToDBPass("ce21b747de5af71ab5c2e20ff0a60eea","1a2b3c4d"));
-//        //打印后端真正调用的：0687f9701bca74827fcefcd7e743d179,和第二行的打印相同，说明方法正确；这个字符串就是最后存入DB的
-//        System.out.println(inputPassToDBPass("123456","1a2b3c4d"));
-//
-//    }
+    public static void main(String[] args) {
+        //打印第一次加密后的密码:d3b1294a61a07da9b49b6e22b2cbd7f9
+        System.out.println(inputPassToFromPass("123456"));
+        //打印第二次加密后的密码:b7797cce01b4b131b433b6acf4add449
+        //我理解：这里的salt最好和第一次加密的salt取不一样，但是老师这里取一样的salt
+        System.out.println(fromPassToDBPass("d3b1294a61a07da9b49b6e22b2cbd7f9","1a2b3c4d"));
+        //打印后端真正调用的：b7797cce01b4b131b433b6acf4add449,和第二行的打印相同，说明方法正确；这个字符串就是最后存入DB的
+        System.out.println(inputPassToDBPass("123456","1a2b3c4d"));
+
+    }
 }

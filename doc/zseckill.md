@@ -144,7 +144,7 @@ import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 //如果闲麻烦，不想在每个mapper上加@Mapper注解，就可以在启动类上加@MapperScan注解并标注需要编译生成实体类的路径(“cn.wenham.dao”)的注解。这样在编译之后都会生成相应的实现类。
-@MapperScan("com.zhangyun.seckill.pojo")
+@MapperScan("com.zhangyun.zseckill.mapper")
 @SpringBootApplication
 public class ZseckillApplication {
 
@@ -339,7 +339,7 @@ public class MD5Util {
     * */
     public static String inputPassToFromPass(String inputPass) {
         //这里salt.charAt是随意取的，个数随意，char的位置随意
-        String str = salt.charAt(0) + salt.charAt(2) + inputPass + salt.charAt(5) + salt.charAt(4);
+        String str = ""+salt.charAt(0) + salt.charAt(2) + inputPass + salt.charAt(5) + salt.charAt(4);
         //被md5加密的是明文密码+盐的部分 所组成的字符串
         return md5(str);
     }
@@ -352,7 +352,7 @@ public class MD5Util {
     * 这里形参里的salt，是后端拿到密文后，二次加密需要的盐；和前端加密用的盐不同；二次加密用的盐是自己随机出来的盐
     * */
     public static String fromPassToDBPass(String formPass, String salt) {
-        String str = salt.charAt(0) + salt.charAt(2) + formPass + salt.charAt(5) + salt.charAt(4);
+        String str = ""+salt.charAt(0) + salt.charAt(2) + formPass + salt.charAt(5) + salt.charAt(4);
         return md5(str);
     }
 
@@ -367,16 +367,16 @@ public class MD5Util {
         return dbPass;
     }
       //自测MD5Util
-//    public static void main(String[] args) {
-//        //打印第一次加密后的密码:ce21b747de5af71ab5c2e20ff0a60eea
-//        System.out.println(inputPassToFromPass("123456"));
-//        //打印第二次加密后的密码:0687f9701bca74827fcefcd7e743d179
-//        //我理解：这里的salt最好和第一次加密的salt取不一样，但是老师这里取一样的salt
-//        System.out.println(fromPassToDBPass("ce21b747de5af71ab5c2e20ff0a60eea","1a2b3c4d"));
-//        //打印后端真正调用的：0687f9701bca74827fcefcd7e743d179,和第二行的打印相同，说明方法正确；这个字符串就是最后存入DB的
-//        System.out.println(inputPassToDBPass("123456","1a2b3c4d"));
-//
-//    }
+    public static void main(String[] args) {
+        //打印第一次加密后的密码:d3b1294a61a07da9b49b6e22b2cbd7f9
+        System.out.println(inputPassToFromPass("123456"));
+        //打印第二次加密后的密码:b7797cce01b4b131b433b6acf4add449
+        //我理解：这里的salt最好和第一次加密的salt取不一样，但是老师这里取一样的salt
+        System.out.println(fromPassToDBPass("d3b1294a61a07da9b49b6e22b2cbd7f9","1a2b3c4d"));
+        //打印后端真正调用的：b7797cce01b4b131b433b6acf4add449,和第二行的打印相同，说明方法正确；这个字符串就是最后存入DB的
+        System.out.println(inputPassToDBPass("123456","1a2b3c4d"));
+
+    }
 }
 
 ```
@@ -688,7 +688,7 @@ public class CodeGenerator {
 
 ### 功能开发前期准备工作
 
-#### 登录-页面跳转
+#### 登录-跳转到登录页面+静态资源准备
 
 1，创建控制器LoginController：
 
@@ -698,10 +698,10 @@ public class CodeGenerator {
 package com.zhangyun.zseckill.controller;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
 
-@RestController
+@Controller
 @RequestMapping("/login")
 //用于打印日志；免去一系列复杂的日志设置
 @Slf4j
@@ -712,8 +712,8 @@ public class LoginController {
     public String toLogin(){
         return "login";
     }
+    
 }
-
 ```
 
 - 生成这么多类，不一定都会用；项目完成后，用不到的类会被删掉；这里生成这么多类，只是因为逆向工程统一生成了，但是我用不一定会用。
@@ -750,6 +750,7 @@ public class LoginController {
     <script type="text/javascript" th:src="@{/js/common.js}"></script>
 </head>
 <body>
+<!--表单-->
 <form name="loginForm" id="loginForm" method="post" style="width:50%; margin:0 auto">
 
     <h2 style="text-align:center; margin-bottom: 20px">用户登录</h2>
@@ -799,23 +800,30 @@ public class LoginController {
     }
 
     function doLogin() {
+        //展示登录中
         g_showLoading();
 
+        //拿到明文密码
         var inputPass = $("#password").val();
+        //拿到盐
         var salt = g_passsword_salt;
+        //拿到盐之后做第一次明文密码的加密
         var str = "" + salt.charAt(0) + salt.charAt(2) + inputPass + salt.charAt(5) + salt.charAt(4);
         var password = md5(str);
 
-       
+        //加密完成后，通过ajax调用后端的接口
         $.ajax({
+            //注意url要和后端RequestMapping的完整路径一致
             url: "/login/doLogin",
             type: "POST",
             data: {
                 mobile: $("#mobile").val(),
                 password: password
             },
+            //成功请求的话，查看后端返回的数据
             success: function (data) {
                 layer.closeAll();
+                //如果数据是200，说明成功，打印相关成功标识；否则打印失败
                 if (data.code == 200) {
                     layer.msg("成功");
                     console.log(data);
@@ -837,12 +845,408 @@ public class LoginController {
 - 本项目的各个html页面，依赖resource/static下导入的静态资源
 - 可以看到静态资源里的common.js中的g_passsword_salt（盐）的值，和MD5加密中用得到的盐一致，这体现后端得有前端的盐。
   - 前端盐的用法，和后端也一样。
+- 前端登录过程讲解：doLogin函数中有注释
+  - 问答问：前端的确加密了，但是后端自己也做了两次加密是为什么？
+    - 自答：可能两次加密时老师为了演示两次加密的效果；后端真实处理的时候，使用的是第二次加密的函数（而非做两次加密的函数）。
 
-4，LoginController中编写dologin方法：
+
+#### 登录-编写执行登录任务的准备
+
+1，接下来应该在LoginController中编写dologin方法，dologin返回方法有返回值；不过在编写dologin之前我们要先编写公用的返回对象，在启动类同级新建vo包，vo包中有我们想要返回的一些vo对象：
+
+![image-20220328095602733](zseckill.assets/image-20220328095602733.png)
+
+2，编写respBean，即公共返回对象：
+
+![image-20220328102222411](zseckill.assets/image-20220328102222411.png)
 
 ```java
+package com.zhangyun.zseckill.vo;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+//getsettostring，无参构造，有参构造
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class RespBean {
+    private long code;
+    private String message;
+    //返回的时候可能需要带一个对象
+    private Object obj;
+
+    //成功返回结果，这是最简单的，后续可能会加内容
+    public static RespBean success() {
+        return new RespBean(RespBeanEnum.SUCCESS.getCode(), RespBeanEnum.SUCCESS.getMessage(), null);
+    }
+    public static RespBean success(Object object) {
+        return new RespBean(RespBeanEnum.SUCCESS.getCode(), RespBeanEnum.SUCCESS.getMessage(), object);
+    }
+    /*
+    * 失败返回结果
+    *
+    * 为什么成功不用传枚举，失败要传呢？：成功只有200；失败各有不同，如403 404 502等
+    * */
+    public static RespBean error(RespBeanEnum respBeanEnum) {
+        return new RespBean(respBeanEnum.getCode(), respBeanEnum.getMessage(), null);
+    }
+    public static RespBean error(RespBeanEnum respBeanEnum, Object object) {
+        return new RespBean(respBeanEnum.getCode(), respBeanEnum.getMessage(), object);
+    }
+
+}
+
 ```
 
-https://www.bilibili.com/video/BV1sf4y1L7KE?p=7&spm_id_from=pageDriver
+- 本服务端执行前端的请求成功的话，会给前端返回success
 
-7.30
+3，编写公共返回对象respBean的枚举：
+
+![image-20220328101350243](zseckill.assets/image-20220328101350243.png)
+
+```java
+package com.zhangyun.zseckill.vo;
+
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.ToString;
+
+//get方法,toString方法，全参构造
+@Getter
+@ToString
+@AllArgsConstructor
+public enum RespBeanEnum {
+    //编写枚举成员
+    SUCCESS(200,"SUCCESS"),
+    ERROR(500,"服务端异常");
+
+    //准备 状态码，状态码相应信息
+    private final Integer code;
+    private final String message;
+}
+
+```
+
+- 这个枚举对整个代码是更加有帮助的一个东西
+- 枚举里面的东西是状态，包含：
+  - 状态码
+  - 常用的信息提示
+
+- 这里使用了lombok，如果lombok注解爆红，要在idea中安装lombok插件，并且要让项目启用插件。
+
+- 这里枚举用了成员变量；枚举成员小括号中的值从左到右，是成员变量从上到下的顺序；可以参考[(22条消息) Java enum常见的用法_浮生夢的博客-CSDN博客_enum java](https://blog.csdn.net/echizao1839/article/details/80890490)
+
+#### 测试跳转到登录页
+
+1，先看看页面跳转能用吗，启动项目；报错：
+
+```
+org.springframework.beans.factory.UnsatisfiedDependencyException: Error creating bean with name 'userServiceImpl': Unsatisfied dependency expressed through field 'baseMapper'; nested exception is org.springframework.beans.factory.NoSuchBeanDefinitionException: No qualifying bean of type 'com.zhangyun.zseckill.mapper.UserMapper' available: expected at least 1 bean which qualifies as autowire candidate. Dependency annotations: {@org.springframework.beans.factory.annotation.Autowired(required=true)}
+
+Caused by: org.springframework.beans.factory.NoSuchBeanDefinitionException: No qualifying bean of type 'com.zhangyun.zseckill.mapper.UserMapper' available: expected at least 1 bean which qualifies as autowire candidate. Dependency annotations: {@org.springframework.beans.factory.annotation.Autowired(required=true)}
+```
+
+- 报错：UserMapper没有找到，至少需要一个bean；但我们已经在启动类上加了Mapper.scan啊，这是为什么？
+
+2，这是因为启动类的MapperScan注解中把bean偶在的包名写错了：
+
+![image-20220328103731974](zseckill.assets/image-20220328103731974.png)
+
+3，改成如下就好：
+
+![image-20220328103754812](zseckill.assets/image-20220328103754812.png)
+
+- 本文代码已同步修改
+
+4，重新启动项目，成功：
+
+![image-20220328104038817](zseckill.assets/image-20220328104038817.png)
+
+5，访问`http://localhost:8080/login/toLogin`，但是没有返回页面，只显示了一个字符串：
+
+![image-20220328104132208](zseckill.assets/image-20220328104132208.png)
+
+6，这是因为LoginController的@restcontroller注解直接把返回值写进httpresponse中了：
+
+![image-20220328104351977](zseckill.assets/image-20220328104351977.png)
+
+- restcontroler默认给这个类的所有方法加上responsebody，这样return就返回对象，而不是做页面跳转。
+
+7，把注解改成前后端不分离的@Controller即可：
+
+![image-20220328104315437](zseckill.assets/image-20220328104315437.png)
+
+- 本文代码已同步修改
+
+8，重启项目，访问`http://localhost:8080/login/toLogin`:
+
+![image-20220328104656955](zseckill.assets/image-20220328104656955.png)
+
+- 成功来到登录页面。
+
+### 开发登录任务
+
+#### dologin基本功能与前端盐的作用
+
+1，编写dologin方法的参数所需要的vo：
+
+![image-20220328110819004](zseckill.assets/image-20220328110819004.png)
+
+```java
+package com.zhangyun.zseckill.vo;
+
+import com.sun.istack.internal.NotNull;
+import lombok.Data;
+
+@Data
+public class LoginVo {
+
+    @NotNull
+//    @IsMobile
+    private String mobile;
+
+    @NotNull
+//    @Length(min = 32)
+    private String password;
+}
+
+```
+
+2，编写dologin方法，先返回null，测试盐的功能：
+
+```java
+    /*
+    * 用于处理账号密码登录的登录功能
+    * */
+    @RequestMapping("/doLogin")
+    //既然是返回respbean，那么这里必须加上responsebody
+    @ResponseBody
+    //要传递参数如手机号和密码进来，就要编写一个参数vo
+    public RespBean doLogin(LoginVo loginVo){
+        //这里能直接使用log，是因为本类使用了lombok+sl4j注解
+        log.info("{}",loginVo);
+        return null;
+    }
+```
+
+3，输入密码123456，手机号任意；点击登录：
+
+![image-20220328111612609](zseckill.assets/image-20220328111612609.png)
+
+4，在idea控制台，可以看到dologin方法打印的接收到的，从前端发来的一次MD5加密后的密码：
+
+![image-20220328111739504](zseckill.assets/image-20220328111739504.png)
+
+5，打开MD5UTIL，运行自测用的main函数，看第一次加密后的密码；发现和前端不一致：
+
+![image-20220328112201614](zseckill.assets/image-20220328112201614.png)
+
+6，经过检查发现，前端拿盐加密时，最开头有一个空字符串，而后端没有：
+
+![image-20220328112454499](zseckill.assets/image-20220328112454499.png)
+
+- 网友：警惕两个char 类型的直接相加！
+
+7，把MD5UTIL中的加密，也加上空字符串：
+
+![image-20220328112634038](zseckill.assets/image-20220328112634038.png)
+
+- 本位代码已同步更新
+
+8，重新启动MD5UTIL的main函数测试，这回第一次加密后的密码和前端加密的结果对上了：
+
+![image-20220328115210101](zseckill.assets/image-20220328115210101.png)
+
+- 这说明前端传送的MD5加密密码，传到后端后处理应该不会有太大问题的。
+
+#### 实现登录逻辑
+
+1，找到service层，看到有IUserService；有它就可以直接在Controller中注入它。
+
+![image-20220328113737923](zseckill.assets/image-20220328113737923.png)
+
+2，在logincontroller中注入service层
+
+![image-20220328113950206](zseckill.assets/image-20220328113950206.png)
+
+3，修改logincontroller中的dologin方法，让他调用service层：
+
+![image-20220328114154631](zseckill.assets/image-20220328114154631.png)
+
+4，在IUserService接口中创建doLogin方法声明：
+
+![image-20220328114415615](zseckill.assets/image-20220328114415615.png)
+
+5，在service的实现类中实现service层关于dologin的方法;service层涉及了登录逻辑：
+
+```java
+package com.zhangyun.zseckill.service.impl;
+
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.zhangyun.zseckill.mapper.UserMapper;
+import com.zhangyun.zseckill.pojo.User;
+import com.zhangyun.zseckill.service.IUserService;
+import com.zhangyun.zseckill.utils.MD5Util;
+import com.zhangyun.zseckill.utils.ValidatorUtil;
+import com.zhangyun.zseckill.vo.LoginVo;
+import com.zhangyun.zseckill.vo.RespBean;
+import com.zhangyun.zseckill.vo.RespBeanEnum;
+//import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
+
+/**
+ * <p>
+ *  服务实现类
+ * </p>
+ *
+ * @author zhangyun
+ * @since 2022-03-26
+ */
+@Service
+public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IUserService {
+
+    //注入userMapper用于数据库操作
+    /*
+    * idea中userMapper爆红并提示“Could not autowire. No beans of 'UserMapper' type found”的话，没事，
+    * 因为项目的启动类加了注解@MapperScan("com.zhangyun.zseckill.mapper")，会扫描到mapper作为bean的
+    * 这个红色波浪线可以忽略
+    * */
+    @Autowired
+    private UserMapper userMapper;
+
+    /*
+    * 登录
+    * */
+    @Override
+    public RespBean doLogin(LoginVo loginVo) {
+        String mobile = loginVo.getMobile();
+        String password=loginVo.getPassword();
+
+        /*
+        * 虽然前端已经做了初步校验，但是后端还要再做一遍，因为后端是最后防线;
+        * */
+        // 判断用户名密码是否为空；老师用的spring框架的，我也跟着吧
+        if (StringUtils.isEmpty(mobile) || StringUtils.isEmpty(password)) {
+            return RespBean.error(RespBeanEnum.LOGIN_ERROR);
+        }
+        //判断手机号合法性
+        if (!ValidatorUtil.isMobile(mobile)) {
+            return RespBean.error(RespBeanEnum.MOBILE_ERROR);
+        }
+
+        /*
+        * 合法性都没问题的话，就进行数据库查询了
+        * */
+        //根据手机号获取用户
+        User user = userMapper.selectById(mobile);
+        if(null==user){
+            return RespBean.error(RespBeanEnum.LOGIN_ERROR);
+        }
+        //判断密码是否正确：即对收到的前端一次加密的密码，在本服务端再次加密，查看二次加密后的结果是否与数据库存储的二次加密效果相同
+        if (!MD5Util.fromPassToDBPass(password, user.getSalt()).equals(user.getPassword())) {
+            return RespBean.error(RespBeanEnum.LOGIN_ERROR);
+        }
+
+        //service层做的一切校验都ok，就返回成功
+        return RespBean.success();
+    }
+}
+
+```
+
+6，在RespBeanEnum中添加，登录相关的枚举：
+
+![image-20220328134706460](zseckill.assets/image-20220328134706460.png)
+
+- 登录还是要显示一些登录的信息，不要直接写服务端异常，这样对用户的体验度比较好。
+
+7，新建一个用于手机号码校验的工具类：
+
+![image-20220328134813999](zseckill.assets/image-20220328134813999.png)
+
+```java
+package com.zhangyun.zseckill.utils;
+
+import org.thymeleaf.util.StringUtils;
+
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+/**
+ * 手机号码校验类
+ *
+ * @author: zhangyun
+ * @ClassName: ValidatorUtil
+ */
+public class ValidatorUtil {
+
+    //使用正则表达式限制手机号的形式
+    private static final Pattern mobile_patten = Pattern.compile("[1]([3-9])[0-9]{9}$");
+
+    /**
+     * 手机号码校验
+     * @author zhangyun
+     * @operation add
+     * @param mobile
+     * @return boolean
+     **/
+    public static boolean isMobile(String mobile) {
+        //手机为空是无法校验的
+        if (StringUtils.isEmpty(mobile)) {
+            return false;
+        }
+        //手机号不为空则用正则表达式校验
+        Matcher matcher = mobile_patten.matcher(mobile);
+        return matcher.matches();
+    }
+}
+
+```
+
+8，登录本地数据库，在t_user中加入一条数据：
+
+![image-20220328115732549](zseckill.assets/image-20220328115732549.png)
+
+- 密码填MD5对123456二次加密后的密码`b7797cce01b4b131b433b6acf4add449`。
+
+- 数据库这填入盐为密码在后端第二次加密时用的盐；只是本项目中第二次和第一次加密用的盐一样。
+
+- 暂没填入的数据先不管。
+
+- 我们相当于有了一条用户数据。
+
+#### 测试登录功能的逻辑
+
+1，重启项目：
+
+![image-20220328135227118](zseckill.assets/image-20220328135227118.png)
+
+2，测试手机格式，成功：
+
+![image-20220328135303482](zseckill.assets/image-20220328135303482.png)
+
+3，测试用户名密码不匹配的情况
+
+![image-20220328135405017](zseckill.assets/image-20220328135405017.png)
+
+4，演示正确登录的情况；输入数据库中有的手机号，和对应的明文密码（123456）；成功登录：
+
+![image-20220328135943957](zseckill.assets/image-20220328135943957.png)
+
+- 还没编写tolist跳转，所以404；
+
+  ![image-20220328140025650](zseckill.assets/image-20220328140025650.png)
+
+- 不过正是登录成功了才会去跳转到tolist。
+
+5，所以登录功能是没问题的。
+
+
+
+### 自定义注解参数校验
+
+https://www.bilibili.com/video/BV1sf4y1L7KE?p=10&spm_id_from=pageDriver
