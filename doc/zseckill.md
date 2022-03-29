@@ -1523,4 +1523,384 @@ public class GlobalExceptionHandler {
 
 ### 完善登录功能
 
-https://www.bilibili.com/video/BV1sf4y1L7KE?p=12&spm_id_from=pageDriver
+#### cookie处理
+
+1，商品秒杀抢购页面需要判断当前用户是否登录了，没登录则不让参与秒杀；所以登陆成功后要给用户一个状态，最简单的实现就是给cookie一个Session。
+
+2，编写cookie工具类：
+
+![image-20220329100025675](zseckill.assets/image-20220329100025675.png)
+
+```java
+package com.zhangyun.zseckill.utils;
+
+import javax.servlet.http.Cookie;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.UnsupportedEncodingException;
+import java.net.URLDecoder;
+import java.net.URLEncoder;
+
+/**
+ * Cookie工具类
+ *
+ * @author: zhangyun
+ * @ClassName: CookieUtil
+ */
+public final class CookieUtil {
+
+    /**
+     * 得到Cookie的值, 不编码
+     *
+     * @param request
+     * @param cookieName
+     * @return
+     */
+    public static String getCookieValue(HttpServletRequest request, String cookieName) {
+        return getCookieValue(request, cookieName, false);
+    }
+
+    /**
+     * 得到Cookie的值,
+     *
+     * @param request
+     * @param cookieName
+     * @return
+     */
+    public static String getCookieValue(HttpServletRequest request, String cookieName, boolean isDecoder) {
+        Cookie[] cookieList = request.getCookies();
+        if (cookieList == null || cookieName == null) {
+            return null;
+        }
+        String retValue = null;
+        try {
+            for (int i = 0; i < cookieList.length; i++) {
+                if (cookieList[i].getName().equals(cookieName)) {
+                    if (isDecoder) {
+                        retValue = URLDecoder.decode(cookieList[i].getValue(), "UTF-8");
+                    } else {
+                        retValue = cookieList[i].getValue();
+                    }
+                    break;
+                }
+            }
+        } catch (UnsupportedEncodingException e) {
+            e.printStackTrace();
+        }
+        return retValue;
+    }
+
+    /**
+     * 得到Cookie的值,
+     *
+     * @param request
+     * @param cookieName
+     * @return
+     */
+    public static String getCookieValue(HttpServletRequest request, String cookieName, String encodeString) {
+        Cookie[] cookieList = request.getCookies();
+        if (cookieList == null || cookieName == null) {
+            return null;
+        }
+        String retValue = null;
+        try {
+            for (int i = 0; i < cookieList.length; i++) {
+                if (cookieList[i].getName().equals(cookieName)) {
+                    retValue = URLDecoder.decode(cookieList[i].getValue(), encodeString);
+                    break;
+                }
+            }
+        } catch (UnsupportedEncodingException e) {
+            e.printStackTrace();
+        }
+        return retValue;
+    }
+
+    /**
+     * 设置Cookie的值 不设置生效时间默认浏览器关闭即失效,也不编码
+     */
+    public static void setCookie(HttpServletRequest request, HttpServletResponse response, String cookieName,
+                                 String cookieValue) {
+        setCookie(request, response, cookieName, cookieValue, -1);
+    }
+
+    /**
+     * 设置Cookie的值 在指定时间内生效,但不编码
+     */
+    public static void setCookie(HttpServletRequest request, HttpServletResponse response, String cookieName,
+                                 String cookieValue, int cookieMaxage) {
+        setCookie(request, response, cookieName, cookieValue, cookieMaxage, false);
+    }
+
+    /**
+     * 设置Cookie的值 不设置生效时间,但编码
+     */
+    public static void setCookie(HttpServletRequest request, HttpServletResponse response, String cookieName,
+                                 String cookieValue, boolean isEncode) {
+        setCookie(request, response, cookieName, cookieValue, -1, isEncode);
+    }
+
+    /**
+     * 设置Cookie的值 在指定时间内生效, 编码参数
+     */
+    public static void setCookie(HttpServletRequest request, HttpServletResponse response, String cookieName,
+                                 String cookieValue, int cookieMaxage, boolean isEncode) {
+        doSetCookie(request, response, cookieName, cookieValue, cookieMaxage, isEncode);
+    }
+
+    /**
+     * 设置Cookie的值 在指定时间内生效, 编码参数(指定编码)
+     */
+    public static void setCookie(HttpServletRequest request, HttpServletResponse response, String cookieName,
+                                 String cookieValue, int cookieMaxage, String encodeString) {
+        doSetCookie(request, response, cookieName, cookieValue, cookieMaxage, encodeString);
+    }
+
+    /**
+     * 删除Cookie带cookie域名
+     */
+    public static void deleteCookie(HttpServletRequest request, HttpServletResponse response,
+                                    String cookieName) {
+        doSetCookie(request, response, cookieName, "", -1, false);
+    }
+
+    /**
+     * 设置Cookie的值，并使其在指定时间内生效
+     *
+     * @param cookieMaxage cookie生效的最大秒数
+     */
+    private static final void doSetCookie(HttpServletRequest request, HttpServletResponse response,
+                                          String cookieName, String cookieValue, int cookieMaxage, boolean isEncode) {
+        try {
+            if (cookieValue == null) {
+                cookieValue = "";
+            } else if (isEncode) {
+                cookieValue = URLEncoder.encode(cookieValue, "utf-8");
+            }
+            Cookie cookie = new Cookie(cookieName, cookieValue);
+            if (cookieMaxage > 0)
+                cookie.setMaxAge(cookieMaxage);
+            if (null != request) {// 设置域名的cookie
+                String domainName = getDomainName(request);
+                System.out.println(domainName);
+                if (!"localhost".equals(domainName)) {
+                    cookie.setDomain(domainName);
+                }
+            }
+            cookie.setPath("/");
+            response.addCookie(cookie);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * 设置Cookie的值，并使其在指定时间内生效
+     *
+     * @param cookieMaxage cookie生效的最大秒数
+     */
+    private static final void doSetCookie(HttpServletRequest request, HttpServletResponse response,
+                                          String cookieName, String cookieValue, int cookieMaxage, String encodeString) {
+        try {
+            if (cookieValue == null) {
+                cookieValue = "";
+            } else {
+                cookieValue = URLEncoder.encode(cookieValue, encodeString);
+            }
+            Cookie cookie = new Cookie(cookieName, cookieValue);
+            if (cookieMaxage > 0) {
+                cookie.setMaxAge(cookieMaxage);
+            }
+            if (null != request) {// 设置域名的cookie
+                String domainName = getDomainName(request);
+                System.out.println(domainName);
+                if (!"localhost".equals(domainName)) {
+                    cookie.setDomain(domainName);
+                }
+            }
+            cookie.setPath("/");
+            response.addCookie(cookie);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * 得到cookie的域名
+     */
+    private static final String getDomainName(HttpServletRequest request) {
+        String domainName = null;
+        // 通过request对象获取访问的url地址
+        String serverName = request.getRequestURL().toString();
+        if (serverName == null || serverName.equals("")) {
+            domainName = "";
+        } else {
+            // 将url地下转换为小写
+            serverName = serverName.toLowerCase();
+            // 如果url地址是以http://开头  将http://截取
+            if (serverName.startsWith("http://")) {
+                serverName = serverName.substring(7);
+            }
+            int end = serverName.length();
+            // 判断url地址是否包含"/"
+            if (serverName.contains("/")) {
+                //得到第一个"/"出现的位置
+                end = serverName.indexOf("/");
+            }
+
+            // 截取
+            serverName = serverName.substring(0, end);
+            // 根据"."进行分割
+            final String[] domains = serverName.split("\\.");
+            int len = domains.length;
+            if (len > 3) {
+                // www.xxx.com.cn
+                domainName = domains[len - 3] + "." + domains[len - 2] + "." + domains[len - 1];
+            } else if (len <= 3 && len > 1) {
+                // xxx.com or xxx.cn
+                domainName = domains[len - 2] + "." + domains[len - 1];
+            } else {
+                domainName = serverName;
+            }
+        }
+
+        if (domainName != null && domainName.indexOf(":") > 0) {
+            String[] ary = domainName.split("\\:");
+            domainName = ary[0];
+        }
+        return domainName;
+    }
+}
+
+```
+
+3，编写uuid工具类，本工具类用来生成cookie：
+
+```java
+package com.zhangyun.zseckill.utils;
+
+import java.util.UUID;
+
+/**
+ * UUID工具类
+ *
+ * @author: zhangyun
+ * @ClassName: UUIDUtil
+ */
+public class UUIDUtil {
+
+    //生成uuid，并把-替换掉
+    public static String uuid() {
+        return UUID.randomUUID().toString().replace("-", "");
+    }
+}
+
+```
+
+4，在service层，添加逻辑服务的代码：
+
+![image-20220329111606702](zseckill.assets/image-20220329111606702.png)
+
+- 前端收到代表成功的respBean时，就能根据respBean中的message和code做前端的工作。
+
+- 问问问：像cookie和session等信息，是往req中传还是往resp中？
+
+5，在LoginController中添加添加两个入参req resp，好把用户信息+用户cookie存入session：
+
+![image-20220329100812160](zseckill.assets/image-20220329100812160.png)
+
+同时修改IUserService接口的内容：
+
+![image-20220329100842286](zseckill.assets/image-20220329100842286.png)
+
+#### 跳往商品页
+
+1，登录成功后就到商品列表页面，点击“选中商品”就可以去进行秒杀的活动
+
+2，在前端的login.html加上登录成功后的跳转请求：
+
+![image-20220329104520698](zseckill.assets/image-20220329104520698.png)
+
+3，既然要跳往商品页，就需要新建一个GoodsController来处理`/goods/toList`请求：
+
+![image-20220329104450704](zseckill.assets/image-20220329104450704.png)
+
+```java
+package com.zhangyun.zseckill.controller;
+
+import com.zhangyun.zseckill.pojo.User;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.CookieValue;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.thymeleaf.util.StringUtils;
+
+import javax.servlet.http.HttpSession;
+
+@Controller
+@RequestMapping("/goods")
+public class GoodsController {
+
+    /**
+     * 跳转到商品列表页
+     * */
+    @RequestMapping("/toList")
+    //session获取用户信息和cookie；model做页面跳转时，把商品信息传给前端；传入userTicket即为cookieValue,可以通过@CookieValue拿到，@CookieValue括号中指定的是cookieName
+    public String toList(HttpSession session, Model model,@CookieValue("userTicket") String userTicket){
+        /*
+        * 刚刚登录的时候，把相应的用户信息存储起来了，这里就可以获取用户信息
+        * */
+        //如果ticket为空就登录
+        if(StringUtils.isEmpty(userTicket)){
+            return "login";
+        }
+        /*
+        * session中通过kv存储了userTicket（即cookieValue）和User，这里通过userTicket拿到user；
+        * 我推测：getAttribute拿到的object本身就是一个User，所以才能强转为User
+        *
+        * session中没有用户的值，即用户未登录，跳往登录页面
+        * */
+        User user = (User)session.getAttribute(userTicket);
+        if(user==null){
+            return "login";
+        }
+
+        //把用户信息传入到前端
+        model.addAttribute("user",user);
+        return "goodsList";
+    }
+}
+
+```
+
+- 注意：`return "goodsList";`不要写成`return "goodList";`，否则goodsList页面会显示”无法识别user“
+
+4，编写商品列表页（极简实例）：
+
+![image-20220329104659830](zseckill.assets/image-20220329104659830.png)
+
+```html
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>商品列表</title>
+</head>
+<body>
+    <p th:text="'hello'+${user.nickname}"></p>
+</body>
+</html>
+```
+
+#### 测试
+
+1，启动项目，输入本地数据库中存在数据，点击登录；成功把数据库中的内容展示到前端：
+
+![image-20220329110446917](zseckill.assets/image-20220329110446917.png)
+
+- 我记得好像：user会被自动被转成json传给前端，前端就能自动识别user结构，并根据前端指令从user中拿到nickname。
+
+### 分布式session问题
+
+https://www.bilibili.com/video/BV1sf4y1L7KE?p=13

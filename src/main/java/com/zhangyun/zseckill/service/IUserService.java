@@ -5,6 +5,9 @@ import com.zhangyun.zseckill.pojo.User;
 import com.zhangyun.zseckill.vo.LoginVo;
 import com.zhangyun.zseckill.vo.RespBean;
 
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
 /**
  * 功能表示：实现登录的service层接口
  * <p>
@@ -16,5 +19,5 @@ import com.zhangyun.zseckill.vo.RespBean;
  */
 public interface IUserService extends IService<User> {
 
-    RespBean doLogin(LoginVo loginVo);
+    RespBean doLogin(LoginVo loginVo, HttpServletRequest request, HttpServletResponse response);
 }

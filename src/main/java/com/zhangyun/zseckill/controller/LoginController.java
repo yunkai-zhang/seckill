@@ -9,6 +9,8 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
 
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
 
 @Controller
@@ -34,10 +36,10 @@ public class LoginController {
     @RequestMapping("/doLogin")
     //既然是返回respbean，那么这里必须加上responsebody
     @ResponseBody
-    //要传递参数如手机号和密码进来，就要编写一个参数vo
-    public RespBean doLogin(@Valid LoginVo loginVo){
+    //要传递参数如手机号和密码进来，就要编写一个参数vo；添加入参req resp，把用户信息+用户cookie存入session
+    public RespBean doLogin(@Valid LoginVo loginVo, HttpServletRequest request, HttpServletResponse response){
         //这里能直接使用log，是因为本类使用了lombok+sl4j注解
         //log.info("{}",loginVo);
-        return userService.doLogin(loginVo);
+        return userService.doLogin(loginVo,request,response);
     }
 }

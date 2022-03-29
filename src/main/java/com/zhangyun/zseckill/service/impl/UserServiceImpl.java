@@ -5,15 +5,18 @@ import com.zhangyun.zseckill.exception.GlobalException;
 import com.zhangyun.zseckill.mapper.UserMapper;
 import com.zhangyun.zseckill.pojo.User;
 import com.zhangyun.zseckill.service.IUserService;
+import com.zhangyun.zseckill.utils.CookieUtil;
 import com.zhangyun.zseckill.utils.MD5Util;
-import com.zhangyun.zseckill.utils.ValidatorUtil;
+import com.zhangyun.zseckill.utils.UUIDUtil;
 import com.zhangyun.zseckill.vo.LoginVo;
 import com.zhangyun.zseckill.vo.RespBean;
 import com.zhangyun.zseckill.vo.RespBeanEnum;
 //import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 
 /**
  * <p>
@@ -39,7 +42,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
     * 登录
     * */
     @Override
-    public RespBean doLogin(LoginVo loginVo) {
+    public RespBean doLogin(LoginVo loginVo, HttpServletRequest request, HttpServletResponse response) {
         String mobile = loginVo.getMobile();
         String password=loginVo.getPassword();
 
@@ -74,7 +77,14 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
             throw new GlobalException(RespBeanEnum.LOGIN_ERROR);
         }
 
-        //service层做的一切校验都ok，就返回成功
+        //生成cookie
+        String userTicket = UUIDUtil.uuid();
+        //将用户信息+用户cookie存到session中，就得用到request和response（存cookie用到response）
+        request.getSession().setAttribute(userTicket,user);
+        //通过CookieUtil工具类，把cookievalue为uuid且cookiename为userTicket的cookie存入resp中（cookie中其他未设置的属性使用CookieUtil中的默认值）
+        CookieUtil.setCookie(request, response, "userTicket", userTicket);
+        //登录校验成功+在session中设置用户和cookie完成，于是可以给前端发送成功指令
         return RespBean.success();
+
     }
 }
