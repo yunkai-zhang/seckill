@@ -22,7 +22,7 @@ public class GoodsController {
         /*
         * 刚刚登录的时候，把相应的用户信息存储起来了，这里就可以获取用户信息
         * */
-        //如果ticket为空就登录
+        //如果ticket为空就登录（防止用户直接访问toList尝试来到商品页）
         if(StringUtils.isEmpty(userTicket)){
             return "login";
         }

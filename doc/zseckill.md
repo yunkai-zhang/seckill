@@ -1,4 +1,4 @@
-## 课程介绍
+## 介绍
 
 #### 技术点介绍
 
@@ -76,7 +76,9 @@
 
 ![image-20220325205217341](zseckill.assets/image-20220325205217341.png)
 
-2，编写yaml内容：
+2，按照[本文](https://blog.csdn.net/weixin_44018093/article/details/88641594)内容，把idea一切可以设置编码格式的地方设置为utf8。已经乱码的中文无法拯救。
+
+3，编写yaml内容：
 
 ```yaml
 spring:
@@ -1802,8 +1804,9 @@ public class UUIDUtil {
 ![image-20220329111606702](zseckill.assets/image-20220329111606702.png)
 
 - 前端收到代表成功的respBean时，就能根据respBean中的message和code做前端的工作。
+- 问答问：像cookie和session等信息，是往req中传还是往resp中？
+  - 我：我记得是放到resp返回给客户端
 
-- 问问问：像cookie和session等信息，是往req中传还是往resp中？
 
 5，在LoginController中添加添加两个入参req resp，好把用户信息+用户cookie存入session：
 
@@ -1850,7 +1853,7 @@ public class GoodsController {
         /*
         * 刚刚登录的时候，把相应的用户信息存储起来了，这里就可以获取用户信息
         * */
-        //如果ticket为空就登录
+        //如果ticket为空就登录（防止用户直接访问toList尝试来到商品页）
         if(StringUtils.isEmpty(userTicket)){
             return "login";
         }
@@ -1903,4 +1906,235 @@ public class GoodsController {
 
 ### 分布式session问题
 
-https://www.bilibili.com/video/BV1sf4y1L7KE?p=13
+#### 问题定义与解决思路
+
+1，一个tomcat可以承担几百条的访问量，但是秒杀可能有几十万的瞬时访问量，所以就要用多台tomcat，并用Nginx做请求转发（Nginx默认负载均衡策略为轮询）；Nginx可能请求转发给tomcat1让tomcat1上有用户的登录session，但是过会把请求转发给tomcat2，此时tomcat2上没有用户的session，就得重新登录，很麻烦；这就是所谓的“分布式session问题”。
+
+![image-20220329194139900](zseckill.assets/image-20220329194139900.png)
+
+2，分布式session的解决方案：
+
+- Session复制
+  - 优点
+    - 无需修改代码，只需要修改Tomcat配置。
+  - 缺点
+    - Session同步传输占用内网带宽
+    - 多台Tomcat同步性能指数级下降 
+    - Session占用内存，无法有效水平扩展
+- 前端存储
+  - 优点
+    - 不占用服务端内存。
+  - 缺点
+    - 存在安全风险:cookie在前端且是明文。
+    - 数据大小受cookie限制
+    - 占用外网带宽（前端传到后端，发送cookie存的session对象，占用外网带宽）
+-  Session粘滞
+  - 优点
+    - 无需修改代码
+    - 服务端可以水平扩展。
+  - 缺点
+    - 增加新机器，会重新Hash，导致重新登录
+    - 应用重启，需要重新登录
+
+- 后端集中存储。 
+  - 优点
+    - 安全(不用把数据存在前端，前端看不到)
+    - 容易水平扩展。
+  - 缺点
+    - 增加复杂度
+    - 需要修改代码
+
+- redis
+
+3，本项目解决分布式Session问题：使用redis！
+
+- redis是在内存里存储数据结构，操作速度比关系型数据库如MySQL oracle高。
+- redis可以做数据库，缓存，消息中间件
+- 本项目redis只有单体，没做集群（可以后期自己改进）。
+
+#### 安装redis
+
+1，要安装redis5.0.5，原因：
+
+- 5版本是比较主流的
+- 虽然6版本引入了多线程，但是6版本的多线程是针对网络传输套接字，对数据操作没太大影响；用5就性能不错了。
+  - [参考阅读Redis单线程为什么这么快？看完秒懂了... - 小姜姜 - 博客园 (cnblogs.com)](https://www.cnblogs.com/linkeke/p/15683355.html)
+
+2，登录[官网](https://download.redis.io/releases/)下载
+
+![image-20220329201151818](zseckill.assets/image-20220329201151818.png)
+
+3，把压缩包通过xshell上传到本地虚拟机，并解压`tar zxvf redis-5.0.5.tar.gz `：
+
+![image-20220329205228118](zseckill.assets/image-20220329205228118.png)
+
+![image-20220329205304948](zseckill.assets/image-20220329205304948.png)
+
+3，redis是c编写的，所以要先安装一些依赖：
+
+```
+yum -y install gcc-c++ automake autoconf
+```
+
+![image-20220329205356271](zseckill.assets/image-20220329205356271.png)
+
+4，编译：
+
+```
+make
+```
+
+![image-20220329205902676](zseckill.assets/image-20220329205902676.png)
+
+5，自定义安装目录地安装redis：
+
+```
+ make PREFIX=/usr/local/redis install
+```
+
+![image-20220329210027545](zseckill.assets/image-20220329210027545.png)
+
+6，进入安装了redis的位置，再进入bin目录，可以看到很多关于启动的命令：
+
+![image-20220329210228933](zseckill.assets/image-20220329210228933.png)
+
+- 重点关注redisserver
+
+7，到redis解压文件，复制`redis.conf`到redis安装目录：
+
+![image-20220329210407595](zseckill.assets/image-20220329210407595.png)
+
+```
+cp redis.conf /usr/local/redis/bin
+```
+
+![image-20220329210528123](zseckill.assets/image-20220329210528123.png)
+
+8，修改redis.conf：
+
+![image-20220329210639808](zseckill.assets/image-20220329210639808.png)
+
+- 学习阶段不绑定网络
+
+![image-20220329210659046](zseckill.assets/image-20220329210659046.png)
+
+- 关闭保护模式
+
+![image-20220329210746094](zseckill.assets/image-20220329210746094.png)
+
+- 设置redis为后台启动
+
+其他的部分就不修改了`ESC`退出输入模式，`:wq`保存并退出。
+
+9，让redisserver以redisconf规定的方式启动：
+
+```
+./redis-server redis.conf
+```
+
+![image-20220329211020826](zseckill.assets/image-20220329211020826.png)
+
+- 启动后没有图标，说明是按照redisconf配置的后台启动方式启动。
+
+10，可以用下面命令检查redis是否启动成功：
+
+```
+ps -ef|grep redis
+```
+
+![image-20220329211147791](zseckill.assets/image-20220329211147791.png)
+
+11，使用rediscli去连接已经启动的redisserver：
+
+```
+./redis-cli
+```
+
+![image-20220329211310655](zseckill.assets/image-20220329211310655.png)
+
+- redisserver回复了pong，说明连接成功
+
+12，[安装](http://docs.redisdesktop.com/en/docs/install/)redis可视化客户端工具“redis desktop manager”：
+
+略。。官方版本要钱。
+
+#### redis操作命令
+
+1，略，详情见redis转门的笔记。
+
+2，注意：
+
+- redis的nx xx命令，可以设置分布式锁。
+
+#### SpringSession实现分布式Session
+
+1，可以通过redis实现分布式session，有两种方案：
+
+- 第一种为springsession：简单，且不太需要变更代码。
+
+- 第二种：redis存储用户信息
+
+本节先使用第一种springsession的方法！
+
+2，项目pom中添加依赖，
+
+```xml
+<!--        spring data redis的依赖：因为我们要通过redis实现分布式session，这个是必备的！-->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+<!--        对象池的依赖。redis2.0使用lettuce的客户端，lettuce是线程安全的，lettuce需要对象池-->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-pool2</artifactId>
+        </dependency>
+<!--        springsession的依赖；springsession默认用的就是redis，其实用jdbc和mongodb也可以，原理都一样：把session存在一个单独的第三方去处理-->
+        <dependency>
+            <groupId>org.springframework.session</groupId>
+            <artifactId>spring-session-data-redis</artifactId>
+        </dependency>
+```
+
+3，引入了SpringSession的依赖，就要去yml配置它:
+
+```yml
+spring:
+  # redis配置
+  redis:
+    # 服务器地址
+    host: 120.53.244.17
+    # 端口号
+    port: 6379
+    # 默认操作的数据库号
+    database: 0
+    # 超时时间
+    timeout: 10000ms
+    # 对lettuce连接池配置
+    lettuce:
+      pool:
+        #最大连接数 默认8
+        max-active: 8
+        #最大连接阻塞等待时间，默认-1
+        max-wait: 1000ms
+        #最大空闲连接，默认8
+        max-idle: 200
+        # 最小空闲连接，默认0
+        min-idle: 5
+```
+
+4，**确保redisserver已启动**
+
+5，执行登录操作，可以看到helloadmin，说明session已经存起来了：
+
+![image-20220330001910304](zseckill.assets/image-20220330001910304.png)
+
+6，来到使用rediscli连接redisserver，查看redisserver中存的键值对；可以看到本地程序成功把session存入到远程服务器上的redisserver中：
+
+![image-20220330002107786](zseckill.assets/image-20220330002107786.png)
+
+
+
+#### redis存储用户信息
+
+[优极限【完整项目实战】半天带你用-springBoot、Redis轻松实现Java高并发秒杀系统-我们要能够撑住100W级压力_哔哩哔哩_bilibili](https://www.bilibili.com/video/BV1sf4y1L7KE?p=17&spm_id_from=pageDriver)
