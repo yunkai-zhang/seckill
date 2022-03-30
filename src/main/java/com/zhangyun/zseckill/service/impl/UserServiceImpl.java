@@ -13,7 +13,9 @@ import com.zhangyun.zseckill.vo.RespBean;
 import com.zhangyun.zseckill.vo.RespBeanEnum;
 //import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
+import org.thymeleaf.util.StringUtils;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -37,6 +39,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
     * */
     @Autowired
     private UserMapper userMapper;
+    @Autowired
+    private RedisTemplate redisTemplate;
 
     /*
     * 登录
@@ -79,12 +83,38 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
 
         //生成cookie
         String userTicket = UUIDUtil.uuid();
+        //将用户信息存入redis；opsForValue专门用于操作String类型
+        redisTemplate.opsForValue().set("user:"+userTicket,user);
+
         //将用户信息+用户cookie存到session中，就得用到request和response（存cookie用到response）
-        request.getSession().setAttribute(userTicket,user);
-        //通过CookieUtil工具类，把cookievalue为uuid且cookiename为userTicket的cookie存入resp中（cookie中其他未设置的属性使用CookieUtil中的默认值）
+        //request.getSession().setAttribute(userTicket,user);之前把用户信息放在session中，现在我们把用户信息放到redis中：
+        /*
+        * 通过CookieUtil工具类，把cookievalue为uuid且cookiename为userTicket的cookie存入resp中（cookie中其他未设置的属性使用CookieUtil中的默认值）
+        *
+        * 使用redis存储用户信息时，cookie用法不变
+        * */
         CookieUtil.setCookie(request, response, "userTicket", userTicket);
         //登录校验成功+在session中设置用户和cookie完成，于是可以给前端发送成功指令
         return RespBean.success();
 
+    }
+
+    /**
+     * 根据tickiet（即cookievalue）从远程redis拿到用户的数据
+     * */
+    @Override
+    public User getUserByCookie(String userTicket,HttpServletRequest request, HttpServletResponse response) {
+
+        if (StringUtils.isEmpty(userTicket)) {
+            return null;
+        }
+        User user = (User) redisTemplate.opsForValue().get("user:" + userTicket);
+        /*
+        * 做一个优化，如果用户不为空，我把cookie重新设置一下，这主要是以防万一的考虑。
+        * */
+        if (user != null) {
+            CookieUtil.setCookie(request, response, "userTicket", userTicket);
+        }
+        return user;
     }
 }

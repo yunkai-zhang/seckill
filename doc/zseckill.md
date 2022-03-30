@@ -1928,7 +1928,8 @@ public class GoodsController {
     - 存在安全风险:cookie在前端且是明文。
     - 数据大小受cookie限制
     - 占用外网带宽（前端传到后端，发送cookie存的session对象，占用外网带宽）
--  Session粘滞
+- Session粘滞
+  - 网友：粘滞就是一致性hash
   - 优点
     - 无需修改代码
     - 服务端可以水平扩展。
@@ -1943,7 +1944,6 @@ public class GoodsController {
   - 缺点
     - 增加复杂度
     - 需要修改代码
-
 - redis
 
 3，本项目解决分布式Session问题：使用redis！
@@ -2137,4 +2137,340 @@ spring:
 
 #### redis存储用户信息
 
-[优极限【完整项目实战】半天带你用-springBoot、Redis轻松实现Java高并发秒杀系统-我们要能够撑住100W级压力_哔哩哔哩_bilibili](https://www.bilibili.com/video/BV1sf4y1L7KE?p=17&spm_id_from=pageDriver)
+1，现在用第二种方式实现分布式session；
+
+- 其实也不叫实现分布式session，因为它压根就不会再用到session，更多的就像把用户信息从session中提取出来，存到redis中
+- 之前把我能的用户信息存到session中，然后去不同的地方获取session；现在我们直接把用户信息存在redis中，这样不管哪一个用户要用到用户信息，都从同一个redis中获取，这样也是变相地解决了分布式session的问题。
+- 想要让用户信息存入redis，就相当于用代码操作redis
+
+2，清空redisserver存的东西，让它干净：
+
+![image-20220330121138098](zseckill.assets/image-20220330121138098.png)
+
+3，注释掉项目中Springsession的依赖；相当于现在直接使用springdataredis：
+
+![image-20220330122412616](zseckill.assets/image-20220330122412616.png)
+
+4，redis的yml配置不用改
+
+5，之前不做任何配置的时候，存入redis的数据是2进制的；存的是session其实还好，但是现在要存用户对象，我们最好对对象进行相应的序列化。
+
+6，序列化很简单，先创建一个包，再创建RedisConfig：
+
+![image-20220330123027224](zseckill.assets/image-20220330123027224.png)
+
+```java
+package com.zhangyun.zseckill.config;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
+import org.springframework.data.redis.serializer.StringRedisSerializer;
+
+/**
+ * redis配置类，最主要的功能就是为了实现存入redis的数据序列化
+ * */
+@Configuration
+public class RedisConfig {
+
+    /*
+    * 实现序列化主要就是通过redisTemplate方法
+    *
+    * key一般是String类型，要存用户对象的话value是Object类型
+    *
+    * redisTemplate需要传入RedisConnectionFactory（连接工厂）
+    * */
+    @Bean
+    public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory redisConnectionFactory) {
+        //拿到redisTemplate
+        RedisTemplate<String, Object> redisTemplate = new RedisTemplate<>();
+
+        //设置redis 的key 的序列化
+        redisTemplate.setKeySerializer(new StringRedisSerializer());
+        /*
+        * 设置redis 的value 的序列化；这里不能用String了，因为value是object，得用 GenericJackson2JsonRedisSerializer；
+        *
+        * redis默认使用jdk的序列化（jdk序列化产出的是2进制，产生的数据比较长）；
+        * Jackson2JsonRedisSerializer产生的是java字符串，需传入类对象；
+        * GenericJackson2JsonRedisSerializer是通用的json转换，它序列化完成后也是序列化数据，但是不需要传入类对象（所以一般选择这个序列化器）
+        * */
+        redisTemplate.setValueSerializer(new GenericJackson2JsonRedisSerializer());
+        //虽然hash本质也是kv形式，但是对hash类型要单独做keyvalue序列化
+        redisTemplate.setHashKeySerializer(new StringRedisSerializer());
+        redisTemplate.setHashValueSerializer(new GenericJackson2JsonRedisSerializer());
+
+        //在拿到的redistemplate中设置连接工厂，即刚刚注入的redisConnectionFactory
+        redisTemplate.setConnectionFactory(redisConnectionFactory);
+
+        return redisTemplate;
+    }
+    
+}
+
+```
+
+- 这样redistemplate序列化就配置好了
+
+7，现在该service层的业务代码UserServiceImpl；之前把用户信息放在session中，现在我们把用户信息放到redis中：
+
+注入redistemplate：
+
+![image-20220330130141288](zseckill.assets/image-20220330130141288.png)
+
+把用户信息存入远程redis：
+
+![image-20220330131611482](zseckill.assets/image-20220330131611482.png)
+
+8，IUserService接口中再添加一个方法getUserByCookie：
+
+![image-20220330133153062](zseckill.assets/image-20220330133153062.png)
+
+- getUserByCookie中传入request和response主要是为了优化，为了当用户不为空，我把cookie重新设置一下
+
+9，在UserServiceImpl中实现getUserByCookie方法：
+
+![image-20220330133330263](zseckill.assets/image-20220330133330263.png)
+
+10，在GoodsController中编写代码：
+
+注入Service层接口，从而使用service的服务；controller-》service-》dao为（mvc）调用顺序：
+
+![image-20220330133731418](zseckill.assets/image-20220330133731418.png)
+
+调用service层的服务，根据cookievalue拿到user：
+
+![image-20220330134115992](zseckill.assets/image-20220330134115992.png)
+
+11，启动项目测试：
+
+- 如果启动碰到错误：
+
+  ```
+  nested exception is io.lettuce.core.RedisConnectionException: Unable to conn
+  ```
+
+  - [参考解决方案Unable to connect to Redis; nested exception is io.lettuce.core.RedisConnectionException：解决方法 - upupup-999 - 博客园 (cnblogs.com)](https://www.cnblogs.com/upupup-999/p/14858140.html)
+
+  - 我用的是执行了`/sbin/iptables -I INPUT -p tcp --dport 6379 -j ACCEPT`，redis默认端口号6379是不允许进行远程连接的，所以在防火墙中设置6379开启远程服务；
+
+登录；能看到admin说明数据库的用户信息能被后端拿到：
+
+![image-20220330142236956](zseckill.assets/image-20220330142236956.png)
+
+查看redis，可以看到以"user+cookievalue"为键的redis kv键值对；根据k查看v，这个v就是json格式的用户数据：
+
+![image-20220330143231786](zseckill.assets/image-20220330143231786.png)
+
+12，总结：
+
+可以发现redis存储用户信息也能解决分布式session的问题。不论是用springsession还是直接用redis存用户信息，原理都是都一个单独存放信息的服务器，程序就不会去tomcat找信息了，而是在单独存放的redis中找信息，这样信息就同步了！
+
+#### 优化登录功能
+
+回顾拦截器
+
+1，当登录完成后，在后端做的每个操作，都要判断用户是否已登录：
+
+- 每一个接口都要判断ticket（即cookievalue）有没有；根据这个ticket去redis中获取用户的信息，再判断用户存不存在。如果这两步都没有问题才会执行当前接口要执行的方法。
+- 比如登录完成后到商品列表页，用户点击商品要进入商品详情页，此时又要做如上两步判断一次用户的登录情况，太麻烦重复臃肿了。
+- 可以优化！
+
+2，如果不想在每个接口中做判断用户是否已登录的操作，可以不往方法传`HttpServletRequest request, HttpServletResponse response, @CookieValue("userTicket") String userTicket`，而改为直接传一个user对象，直接在方法中处理业务逻辑
+
+![image-20220330223735701](zseckill.assets/image-20220330223735701.png)
+
+- 传入的user对象的获取，和用户是否已登录的判断在哪做呢？：在传到本接口之间就进行相应的判断了。这就涉及到参数的问题
+- 所以在本函数（RequestMapping指定的url接口对应的函数）接收参数之前，系统就应该已经获取到了user，并对user做了一层非空的校验；校验通过后，本函数才能正确地接收到参数user，然后就可以处理函数的业务操作。
+
+3，编写实现了HandlerMethodArgumentResolver接口的类UserArgumentResolver（该类实现了自定义用户参数），准备给WebConfig中的addArgumentResolvers使用：
+
+```java
+package com.zhangyun.zseckill.config;
+
+import com.zhangyun.zseckill.pojo.User;
+import com.zhangyun.zseckill.service.IUserService;
+import com.zhangyun.zseckill.utils.CookieUtil;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.MethodParameter;
+import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
+import org.springframework.web.bind.support.WebDataBinderFactory;
+import org.springframework.web.context.request.NativeWebRequest;
+import org.springframework.web.method.support.HandlerMethodArgumentResolver;
+import org.springframework.web.method.support.ModelAndViewContainer;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+/**
+ * 自定义用户参数
+ *
+ * @author: 张云
+ * @ClassName: UserArgumentResolver
+ */
+//不要忘记Component注解，因为本类要被WebConfig中的addArgumentResolvers使用
+@Component
+public class UserArgumentResolver implements HandlerMethodArgumentResolver {
+    //注入userService，从而借助它可以拿到用户信息
+    @Autowired
+    private IUserService iUserService;
+
+    /*
+    * 本函数相当于是做一层条件的判断（可以看到返回类型是布尔类型），只有符合supportsParameter方法的条件（此方法返回false）之后，
+    * 才会执行下面的resolveArgument方法。所以我们在supportsParameter中做一层条件的判断。
+    * */
+    @Override
+    public boolean supportsParameter(MethodParameter parameter) {
+        //获取参数parameter的类型
+        Class<?> parameterType = parameter.getParameterType();
+        //看参数parameter的类型是不是User。如果返回true，说明本方法的入参是User，进而才会走到下面的resolveArgument方法
+        return parameterType == User.class;
+    }
+
+    /*
+    * 本方法主要做原先controller中判断用户是否已登录的那些操作，比如 if(StringUtils.isEmpty(userTicket))和 if(user==null)
+    * */
+    @Override
+    public Object resolveArgument(MethodParameter parameter, ModelAndViewContainer mavContainer, NativeWebRequest webRequest, WebDataBinderFactory binderFactory) throws Exception {
+        //从webRequest中获取request和response
+        HttpServletRequest request = webRequest.getNativeRequest(HttpServletRequest.class);
+        HttpServletResponse response = webRequest.getNativeResponse(HttpServletResponse.class);
+        //getCookieValue需要request，但是resolveArgument的参数里没有直接的request；不过可以从webRequest中获取request和response。这一步从request中拿到了cookievalue
+        String userTicket = CookieUtil.getCookieValue(request, "userTicket");
+
+        //ticket（即cookievalue）为空则直接返回null
+        if (StringUtils.isEmpty(userTicket)) {
+            return null;
+        }
+        //如果ticket不为空，则可以根据ticket从redis中获取用户的数据（即返回一个user对象）
+        return iUserService.getUserByCookie(userTicket, request, response);
+    }
+
+}
+
+```
+
+- 我和网友：这个类实现了，只要请求的函数的参数里有User类，那么这些请求都被supportsParameter拦截并送到resolveArgument中进行进一步处理，体现了mvc参数解析器也有拦截功能；resolveArgument会做一系列处理，并返回一个被supportsParameter拦截的参数类型的对象，该返回对象会传递给被拦截的需要User类做参数的函数。
+  - 这个类实现了，在每个Controller的方法参数入参之前就做好了校验；相当于进一步解耦了一些东西。
+
+4，现在开始实现“1 2”说的功能，在config包下，创建一个MVC配置类WebConfig：
+
+```java
+package com.zhangyun.zseckill.config;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.method.support.HandlerMethodArgumentResolver;
+import org.springframework.web.servlet.config.annotation.EnableWebMvc;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+import java.util.List;
+
+/**
+ * MVC配置类
+ * */
+@Configuration
+@EnableWebMvc
+//因为本类是MVC的配置类，所以本类要实现WebMvcConfigurer接口
+public class WebConfig implements WebMvcConfigurer {
+    //注入编写好的UserArgumentResolver类的bean对象，供给resolvers
+    @Autowired
+    private UserArgumentResolver userArgumentResolver;
+
+    /*
+    * WebMvcConfigurer接口中有很多方法，我们现在要做的是自定义参数；想自定义参数就得用addArgumentResolvers，咱重写该方法
+    *
+    * HandlerMethodArgumentResolver是我们用到的自定义参数的解析器
+    * */
+    @Override
+    public void addArgumentResolvers(List<HandlerMethodArgumentResolver> resolvers) {
+        //resolvers是一个存储HandlerMethodArgumentResolver的数组，所以我们要往resolvers中add实现了HandlerMethodArgumentResolver接口的对象
+        resolvers.add(userArgumentResolver);
+    }
+}
+
+```
+
+- 我理解：这个配置类中定义了各种配置，其中addArgumentResolvers方法专门负责定义与参数解析相关的配置；addArgumentResolvers方法的resolvers数组中存的每一个HandlerMethodArgumentResolver都是一个参数解析方案，本例中是针对参数User的解析方案。
+
+5，修改GoodsGoodsController，在Controller中不再需要做任何检查用户是否已登录的校验，把相关代码注释掉：
+
+![image-20220330233321664](zseckill.assets/image-20220330233321664.png)
+
+- 我理解：toList的参数user是从UserArgumentResolver.resolveArgument接收的。
+
+6，启动项目，访问登录页``，输入mysql数据库中有的账号密码来登录；前端成功拿到admin：
+
+![image-20220330233941435](zseckill.assets/image-20220330233941435.png)
+
+- 前端能拿到admin说明刚刚用UserArgumentResolver自定义参数是没问题的
+
+#### 分布式会话总结
+
+在前面都讲过，略
+
+## 秒杀功能
+
+#### 创建商品表和订单表
+
+1，本项目重点在秒杀，所以表的设计会比较简单，但是表该有的会有。
+
+2，建立商品表：
+
+```mysql
+CREATE TABLE `t_goods` (
+`id` BIGINT(20) NOT NULL AUTO_INCREMENT COMMENT '商品ID',
+`goods_name` VARCHAR(16) DEFAULT NULL COMMENT '商品名称',
+`goods_title` VARCHAR(64) DEFAULT NULL COMMENT '商品标题',
+`goods_img` VARCHAR(64) DEFAULT NULL COMMENT '商品图片',
+`goods_detail` LONGTEXT COMMENT '商品详情',
+`goods_price` DECIMAL(10,2) DEFAULT '0.00' COMMENT '商品价格',
+`goods_stock` INT(11) DEFAULT '0' COMMENT '商品库存，-1表示没有限制',
+PRIMARY KEY(`id`)
+)ENGINE = INNODB AUTO_INCREMENT=3 DEFAULT CHARSET= utf8mb4;
+```
+
+- 商品id就是主键
+- 有些字段随便写的，可能会用不上。
+- 数据库中涉及到价格用Decimal，java中涉及价格用BigDecimal，可以保证精度。
+- 商品库存为-1的话，说明数量管够，随便卖，不看数目了。
+
+![image-20220331003832567](zseckill.assets/image-20220331003832567.png)
+
+3，建立订单表：
+
+```mysql
+CREATE TABLE `t_order`(
+`id` BIGINT(20) NOT NULL AUTO_INCREMENT COMMENT '订单ID',
+`user_id` BIGINT(20) DEFAULT NULL COMMENT '用户ID',
+`goods_id` BIGINT(20) DEFAULT NULL COMMENT '商品ID',
+`delivery_addr_id` BIGINT(20) DEFAULT NULL COMMENT '收货地址ID',
+`goods_name` VARCHAR(16) DEFAULT NULL COMMENT '冗余过来的商品名称',
+`goods_count` INT(11) DEFAULT '0' COMMENT '商品数量',
+`goods_price` DECIMAL(10,2) DEFAULT '0.00' COMMENT '商品单价',
+`order_channel` TINYINT(4) DEFAULT '0' COMMENT '1pc,2android,3ios',
+`status` TINYINT(4) DEFAULT '0' COMMENT '订单状态，0新建未支付，1已支付，2已发货，3已收货，4已退款，5己完成',
+`create_date` datetime DEFAULT NULL COMMENT '订单的创建时间',
+`pay_date` datetime DEFAULT NULL COMMENT '支付时间',
+PRIMARY KEY( `id` )
+)ENGINE = INNODB AUTO_INCREMENT=12 DEFAULT CHARSET= utf8mb4;
+```
+
+![image-20220331005347688](zseckill.assets/image-20220331005347688.png)
+
+#### 创建秒杀商品表和秒杀订单表
+
+1，为什么要有秒杀商品表，而不直接在商品表中用一个“是否秒杀”的字段标记？
+
+- 可能商品同时有两个链接，一个原价，一个秒杀价不好控制，所以一般会分出秒杀商品表。
+
+2，秒杀商品表会和商品的主键id做一个外键的关联，方便后期做处理
+
+- 有了秒杀商品表，同理也要有秒杀订单表。
+
+https://www.bilibili.com/video/BV1sf4y1L7KE?p=21&spm_id_from=pageDriver
+
