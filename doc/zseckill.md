@@ -2415,6 +2415,8 @@ public class WebConfig implements WebMvcConfigurer {
 
 ## 秒杀功能
 
+### 表创建与表数据准备
+
 #### 创建商品表和订单表
 
 1，本项目重点在秒杀，所以表的设计会比较简单，但是表该有的会有。
@@ -2472,5 +2474,402 @@ PRIMARY KEY( `id` )
 
 - 有了秒杀商品表，同理也要有秒杀订单表。
 
-https://www.bilibili.com/video/BV1sf4y1L7KE?p=21&spm_id_from=pageDriver
+3，编写秒杀商品表：
+
+```mysql
+CREATE TABLE `t_seckill_goods`(
+`id` BIGINT(20) NOT NULL AUTO_INCREMENT COMMENT '秒杀商品ID',
+`goods_id` BIGINT(20) DEFAULT NULL COMMENT '商品ID',
+`seckill_price` DECIMAL(10,2) DEFAULT '0.00' COMMENT '秒杀价',
+`stock_count` INT(10) DEFAULT NULL COMMENT '库存数量',
+`start_date` datetime DEFAULT NULL COMMENT '秒杀开始时间',
+`end_date` datetime DEFAULT NULL COMMENT '秒杀结束时间',
+PRIMARY KEY(`id`)
+)ENGINE = INNODB AUTO_INCREMENT=3 DEFAULT CHARSET= utf8mb4;
+```
+
+- 秒杀商品表中要有“商品id”，做商品表的“商品id”做外键关联
+  - 网友：直接通过秒杀表中的商品ID，获取其他数据就行。
+- 秒杀商品表中的“秒杀商品id”，应该称为“主键id”更确切一点，不过还是就叫“秒杀商品id”吧。
+- 三个重点表项：
+  - 商品ID
+  - 库存数量
+  - 秒杀开始和结束的时间
+
+![image-20220331100028271](zseckill.assets/image-20220331100028271.png)
+
+4，编写秒杀订单表：
+
+```mysql
+CREATE TABLE `t_seckill_order`(
+`id` BIGINT(20) NOT NULL AUTO_INCREMENT COMMENT '秒杀订单ID',
+`user_id` BIGINT(20) DEFAULT NULL COMMENT '用户ID',
+`order_id` BIGINT (20) DEFAULT NULL COMMENT '订单ID',
+`goods_id` BIGINT(20) DEFAULT NULL COMMENT'商品ID',
+PRIMARY KEY(id )
+)ENGINE = INNODB AUTO_INCREMENT=3 DEFAULT CHARSET= utf8mb4;
+```
+
+![image-20220331100506857](zseckill.assets/image-20220331100506857.png)
+
+#### 为商品表和秒杀商品表创建数据
+
+1，订单表和秒杀订单表是秒杀的时候才会处理的，先不用为他们创建数据。
+
+2，为商品表简单插入2条数据：
+
+```mysql
+INSERT INTO `t_goods` VALUES
+(1,'IPHONE12','IPHONE12 64GB','/img/iphone12.png','IPHONE 12 64GB','6299.00',100) ,
+(2, 'IPHONE12 PR0','IPHONE12 PRO 128GB','/img/iphone12pro.png','IPHONE12 PRO 128GB','9299.00',100);
+```
+
+![image-20220331102318911](zseckill.assets/image-20220331102318911.png)
+
+3，为秒杀商品表简单插入2条数据：
+
+```mysql
+INSERT INTO `t_seckill_goods` VALUES
+(1,1, '629',10, '2020-11-01 08:00:00', '2020-11-01 09:00.00'),
+(2,2, '929',10, '2020-11-01 08:00.00', '2020-11-01 09:00:00');
+```
+
+- 规范：秒杀的库存要低于商品库存
+
+![image-20220331102933239](zseckill.assets/image-20220331102933239.png)
+
+### 实现商品列表页
+
+秒杀功能有三个页面：登录页-》商品列表页-》商品详情页（进行秒杀，暂省略第三方支付的内容）-》订单页
+
+#### 通过逆向工程得到一系列文件
+
+1，这里用mybatisplus逆向工程，生成pojo等文件：
+
+2，先**清空**之前逆向生成的文件。
+
+3，运行自己的逆向工程中自定义的CodeGenerator类：
+
+![image-20220331110718192](zseckill.assets/image-20220331110718192.png)
+
+4，在控制台输入，各种表名并回车：
+
+![image-20220331111033969](zseckill.assets/image-20220331111033969.png)
+
+![image-20220331111049269](zseckill.assets/image-20220331111049269.png)
+
+5，查看在逆向工程中生成的文件们；并把生成的文件复制到自己的工程中：
+
+![image-20220331112641180](zseckill.assets/image-20220331112641180.png)
+
+![image-20220331113309265](zseckill.assets/image-20220331113309265.png)
+
+6，检查逆向工程复制到本项目的文件们有没有问题：
+
+把Controller中所有请求URL有横杠的改成驼峰：
+
+![image-20220331113029150](zseckill.assets/image-20220331113029150.png)
+
+![image-20220331113133208](zseckill.assets/image-20220331113133208.png)
+
+#### ControllerServiceDao编写
+
+1，因为仅靠seckillgood查不到完整的商品信息，要单独准备一个VO对象；这个VO对象包含秒杀页展示商品需要的所有能一次性展示出来的信息：
+
+```java
+package com.zhangyun.zseckill.vo;
+
+import com.zhangyun.zseckill.pojo.Goods;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.math.BigDecimal;
+import java.util.Date;
+
+/**
+ * 商品返回对象
+ * */
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+//继承goods后，得到goods的所有属性；只需要在GoodVo中添加goods中没有但是goodsvo需要的属性
+public class GoodsVo extends Goods {
+    /**
+     * 秒杀价格
+     **/
+    private BigDecimal seckillPrice;
+
+    /**
+     * 剩余数量
+     **/
+    private Integer stockCount;
+
+    /**
+     * 开始时间
+     **/
+    private Date startDate;
+
+    /**
+     * 结束时间
+     **/
+    private Date endDate;
+}
+
+```
+
+- 注意这里继承Goods，可以让GoodsVo少写参数。
+  - 关于子类到底能否继承父类的private属性，[参考Java的private成员变量的继承问题 - FishLight - 博客园 (cnblogs.com)](https://www.cnblogs.com/yulianggo/p/10417229.html)；所以其实是能用父类private，知识不能直接用。
+- 单独查秒杀表，信息是不全的，因为秒杀商品表中没有商品的详细信息，需要用商品id去关联商品表中做相应的查询。
+
+2，在Controller层的GoodsController中，添加返回给前端商品列表的功能：
+
+![image-20220331155156983](zseckill.assets/image-20220331155156983.png)
+
+![image-20220331133545351](zseckill.assets/image-20220331133545351.png)
+
+- 注意：类中要使用bean时，一定要通过autowired注入bean，否则使用bean时会报空指针异常！
+
+- 网友：前后端分离后就只需要传json了
+
+3，为了支持GoodsController能获取商品列表，IGoodsService接口中添加查找goods信息的方法声明，这里的goods信息以GoodsVo实例化对象的方式返回：
+
+```java
+package com.zhangyun.zseckill.service;
+
+import com.baomidou.mybatisplus.extension.service.IService;
+import com.zhangyun.zseckill.pojo.Goods;
+import com.zhangyun.zseckill.vo.GoodsVo;
+
+import java.util.List;
+
+/**
+ * <p>
+ *  服务类
+ * </p>
+ *
+ * @author zhangyun
+ * @since 2022-03-31
+ */
+public interface IGoodsService extends IService<Goods> {
+    /**
+     * 返回商品列表
+     *
+     * @param
+     * @return java.util.List<com.zhangyun.zseckill.vo.GoodsVo>
+     * @operation add
+     **/
+    List<GoodsVo> findGoodsVo();
+
+}
+```
+
+- 牢记controller-service-dao（mapper）的从上往下的框架结构！
+
+4，GoodsServiceImpl类中实现IGoodsService接口中的findGoodsVo方法：
+
+```java
+package com.zhangyun.zseckill.service.impl;
+
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.zhangyun.zseckill.mapper.GoodsMapper;
+import com.zhangyun.zseckill.pojo.Goods;
+import com.zhangyun.zseckill.service.IGoodsService;
+import com.zhangyun.zseckill.vo.GoodsVo;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+/**
+ * <p>
+ *  服务实现类
+ * </p>
+ *
+ * @author zhangyun
+ * @since 2022-03-31
+ */
+@Service
+public class GoodsServiceImpl extends ServiceImpl<GoodsMapper, Goods> implements IGoodsService {
+    //获取dao层的bean，从而可以与数据库交互
+    @Autowired
+    private GoodsMapper goodsMapper;
+
+    @Override
+    public List<GoodsVo> findGoodsVo() {
+        //这里就不做健壮性判断了，直接返回拿到的goodsvo
+        return goodsMapper.findGoodsVo();
+    }
+}
+
+```
+
+5，在GoodsMapper.java中实现添加findGoodsVo()的声明：
+
+```java
+package com.zhangyun.zseckill.mapper;
+
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.zhangyun.zseckill.pojo.Goods;
+import com.zhangyun.zseckill.vo.GoodsVo;
+
+import java.util.List;
+
+/**
+ * <p>
+ *  Mapper 接口
+ * </p>
+ *
+ * @author zhangyun
+ * @since 2022-03-31
+ */
+public interface GoodsMapper extends BaseMapper<Goods> {
+
+    /**
+     * 返回商品列表
+     * @param
+     * @return java.util.List<com.zhangyun.zseckill.vo.GoodsVo>
+     **/
+    List<GoodsVo> findGoodsVo();
+}
+```
+
+6，GoodsMapper.xml中添加sql语句去实现GoodsMapper.java中声明的findGoodsVo()的功能：
+
+```mysql
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zhangyun.zseckill.mapper.GoodsMapper">
+
+    <!-- 通用查询映射结果 -->
+    <resultMap id="BaseResultMap" type="com.zhangyun.zseckill.pojo.Goods">
+        <id column="id" property="id" />
+        <result column="goods_name" property="goodsName" />
+        <result column="goods_title" property="goodsTitle" />
+        <result column="goods_img" property="goodsImg" />
+        <result column="goods_detail" property="goodsDetail" />
+        <result column="goods_price" property="goodsPrice" />
+        <result column="goods_stock" property="goodsStock" />
+    </resultMap>
+
+    <!-- 通用查询结果列 -->
+    <sql id="Base_Column_List">
+        id, goods_name, goods_title, goods_img, goods_detail, goods_price, goods_stock
+    </sql>
+
+    <select id="findGoodsVo" resultType="com.zhangyun.zseckill.vo.GoodsVo">
+        SELECT g.id,
+               g.goods_name,
+               g.goods_title,
+               g.goods_img,
+               g.goods_price,
+               g.goods_stock,
+               sg.seckill_price,
+               sg.stock_count,
+               sg.start_date,
+               sg.end_date
+        FROM t_goods g
+                 LEFT JOIN t_seckill_goods sg on g.id = sg.goods_id
+    </select>
+
+</mapper>
+
+```
+
+- 推荐在mysql客户端上写好语句，测试成功后再黏贴进xml。
+- 注意：resultType的包路径不要写错，或写成别人的。
+- 网友问问问：这里为什么要用 left join  不应该用 inner join 吗  left  会多出来一行的？
+
+#### 前端内容编写
+
+1，编写goodsList.html:
+
+![image-20220331160134515](zseckill.assets/image-20220331160134515.png)
+
+```html
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>商品列表</title>
+    <!-- jquery -->
+    <script type="text/javascript" th:src="@{/js/jquery.min.js}"></script>
+    <!-- bootstrap -->
+    <link rel="stylesheet" type="text/css" th:href="@{/bootstrap/css/bootstrap.min.css}"/>
+    <script type="text/javascript" th:src="@{/bootstrap/js/bootstrap.min.js}"></script>
+    <!-- layer -->
+    <script type="text/javascript" th:src="@{/layer/layer.js}"></script>
+    <!-- common.js -->
+    <script type="text/javascript" th:src="@{/js/common.js}"></script>
+</head>
+<body>
+<div class="panel panel-default">
+    <div class="panel-heading">秒杀商品列表</div>
+    <table class="table" id="goodslist">
+        <tr>
+            <td>商品名称</td>
+            <td>商品图片</td>
+            <td>商品原价</td>
+            <td>秒杀价</td>
+            <td>库存数量</td>
+            <td>详情</td>
+        </tr>
+        <tr th:each="goods,goodsStat : ${goodsList}">
+            <td th:text="${goods.goodsName}"></td>
+            <td><img th:src="@{${goods.goodsImg}}" width="100" height="100"/></td>
+            <td th:text="${goods.goodsPrice}"></td>
+            <td th:text="${goods.seckillPrice}"></td>
+            <td th:text="${goods.stockCount}"></td>
+            <td><a th:href="'/goodsDetail.html?goodsId='+${goods.id}">详情</a></td>
+        </tr>
+    </table>
+</div>
+</body>
+</html>
+```
+
+2，把其余相关静态资源拷贝进项目
+
+![image-20220331134140815](zseckill.assets/image-20220331134140815.png)
+
+- 秒杀时的商品列表页的库存是秒杀库存，而不是商品表中的库存。
+
+#### 运行测试
+
+1，因为redis中存储了用户的登录信息，**确保远程redis已开启**的前提下，启动项目；有可能会无法加载图片：
+
+![image-20220331160549661](zseckill.assets/image-20220331160549661.png)
+
+- 因为老师用的是@EnableMvc完全接管的方式，如果不使用@EnableMvc的话这默认使用约定的配置
+
+2，来到yaml文件，查看“static-path-pattern”，可以看到默认是`/**`，即所有static路径下的静态资源都会被打包:
+
+![image-20220331161421615](zseckill.assets/image-20220331161421615.png)
+
+3，但是本项目又有配置文件又有配置类（本例为WebConfig）的情况下，配置类是大于配置文件并优先加载的！所以Spring会默认到WebConfig中找static的位置，但是又找不到！
+
+- 网友：这里是因为老师用的是@EnableMvc完全接管的方式，如果不标的话这默认使用约定的配置；亲测拿掉@EnableMvc就能显示图片。
+  - 网友：配置类大于配置文件
+- [参考文章](https://hengyun.tech/spring-boot-enablewebmvc-static-404/)
+
+4，解决这个问题有两种方法：
+
+1. 拿掉WebConfig类上的注解@EnableMvc，即关闭掉”MVC完全接管项目“：
+
+   ![image-20220331163628449](zseckill.assets/image-20220331163628449.png)
+
+2. 在WebConfig中加入配置静态资源位置：
+
+![image-20220331162129666](zseckill.assets/image-20220331162129666.png)
+
+- 网友：如果修改了还是没有的，在数据库的goods_img字段前加上/static试试，我就是这样才有
+
+5，我采用注释掉`@EnableMvc`的方法解决了静态资源访问的问题，修改项目后重新编译打包运行，成功展示了商品列表页：
+
+![image-20220331162627694](zseckill.assets/image-20220331162627694.png)
+
+### 实现商品详情页
+
+https://www.bilibili.com/video/BV1sf4y1L7KE?p=23&spm_id_from=pageDriver
 

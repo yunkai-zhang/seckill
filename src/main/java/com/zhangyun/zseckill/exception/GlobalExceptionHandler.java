@@ -35,7 +35,8 @@ public class GlobalExceptionHandler {
             return respBean;
         }
         //如果之前的异常匹配都没匹配上，就抛出RespBeanEnum中定义的默认ERROR异常（500异常是个框，服务器有问题都可以往里装）
-        System.out.println("异常信息" + e);
+        System.out.print("异常信息：");
+        e.printStackTrace();
         return RespBean.error(RespBeanEnum.ERROR);
     }
 }

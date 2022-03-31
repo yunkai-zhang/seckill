@@ -1,6 +1,7 @@
 package com.zhangyun.zseckill.controller;
 
 import com.zhangyun.zseckill.pojo.User;
+import com.zhangyun.zseckill.service.IGoodsService;
 import com.zhangyun.zseckill.service.IUserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
@@ -18,6 +19,10 @@ import javax.servlet.http.HttpSession;
 public class GoodsController {
     @Autowired
     private IUserService iUserService;
+    //这里一定要注入bean，否则使用bean时会报空指针异常！
+    @Autowired
+    //注入提供查询商品服务的bean
+    private IGoodsService goodsService;
 
     /**
      * 跳转到商品列表页
@@ -53,6 +58,8 @@ public class GoodsController {
 
         //把用户信息传入到前端
         model.addAttribute("user",user);
+        //把商品信息传入前端
+        model.addAttribute("goodsList", goodsService.findGoodsVo());
         return "goodsList";
     }
 }

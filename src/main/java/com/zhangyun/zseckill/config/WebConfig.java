@@ -12,7 +12,8 @@ import java.util.List;
  * MVC配置类
  * */
 @Configuration
-@EnableWebMvc
+//@EnableWebMvc表示让MVC全面接管，仅使用个别MVC功能，还是注释掉@EnableWebMvc吧
+//@EnableWebMvc
 //因为本类是MVC的配置类，所以本类要实现WebMvcConfigurer接口
 public class WebConfig implements WebMvcConfigurer {
     //注入编写好的UserArgumentResolver类的bean对象，供给resolvers
