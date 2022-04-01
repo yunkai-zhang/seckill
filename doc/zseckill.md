@@ -2871,5 +2871,150 @@ public interface GoodsMapper extends BaseMapper<Goods> {
 
 ### 实现商品详情页
 
-https://www.bilibili.com/video/BV1sf4y1L7KE?p=23&spm_id_from=pageDriver
+#### 商品详情的基本信息展示
 
+1，在本项目中，商品详情页和商品列表页实现方法类似，商品列表页是查询所有商品，商品详情页是查询指定的一个商品（根据商品id指定）。
+
+2，查看请求“商品详情页”的前端代码：
+
+![image-20220401102947096](zseckill.assets/image-20220401102947096.png)
+
+- 后端准备好针对`/goods/toDetail/{goods.id}`请求的接口，并且可以利用上前端通过url传递的goods.id，通过goods.id来精准查询一个商品。
+
+2，在controller层的GoodsController编写处理请求详情页的接口：
+
+```java
+    /*
+    * 跳往商品详情页
+    * */
+    @RequestMapping("/toDetail/{goodsId}")
+    //使用@PathVariable指定url路径中参数作为本形参的输入。
+    public String toDetail(Model model, User user,@PathVariable Long goodsId){
+        //把用户信息传入到前端
+        model.addAttribute("user",user);
+        //把商品信息传入前端
+        model.addAttribute("goods", goodsService.findGoodsVoByGoodsId(goodsId));
+        //由controller指定跳往的前端页面，跳转的时候model携带了要给前端的参数
+        return "goodsDetail";
+    }
+```
+
+- 问问问：前端不需要这个用户信息，需要往model里加吗？controller中的函数接收User主要是为了判断请求的用户有没有登录，是不是还得把user传会前端好更新cookie？还没细看。
+
+3，编写Service层接口中的方法声明：
+
+![image-20220401110132455](zseckill.assets/image-20220401110132455.png)
+
+4，编写Service层接口中的方法实现：
+
+![image-20220401110309364](zseckill.assets/image-20220401110309364.png)
+
+5，在Dao层接口中编写方法声明：
+
+![image-20220401110840788](zseckill.assets/image-20220401110840788.png)
+
+6，在Dao层的xml中编写实现查询的sql语句：
+
+```xml
+<!--    获取商品详情-->
+    <select id="findGoodsVoByGoodsId" resultType="com.zhangyun.zseckill.vo.GoodsVo">
+        SELECT g.id,
+               g.goods_name,
+               g.goods_title,
+               g.goods_img,
+               g.goods_price,
+               g.goods_stock,
+               sg.seckill_price,
+               sg.stock_count,
+               sg.start_date,
+               sg.end_date
+        FROM t_goods g
+                 LEFT JOIN t_seckill_goods sg on g.id = sg.goods_id
+        where g.id=#{goodsId}
+    </select>
+```
+
+7，从文档拷贝前端页面，把前端页面多余的内容先删掉，看最简介的页面，主要观察能否展示后端传来的商品数据：
+
+```html
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>商品详情</title>
+    <!-- jquery -->
+    <script type="text/javascript" th:src="@{/js/jquery.min.js}"></script>
+    <!-- bootstrap -->
+    <link rel="stylesheet" type="text/css" th:href="@{/bootstrap/css/bootstrap.min.css}"/>
+    <script type="text/javascript" th:src="@{/bootstrap/js/bootstrap.min.js}"></script>
+    <!-- layer -->
+    <script type="text/javascript" th:src="@{/layer/layer.js}"></script>
+    <!-- common.js -->
+    <script type="text/javascript" th:src="@{/js/common.js}"></script>
+</head>
+<body>
+<div class="panel panel-default">
+    <div class="panel-heading">秒杀商品详情</div>
+    <div class="panel-body">
+        <span th:if="${user eq null}"> 您还没有登录，请登陆后再操作<br/></span>
+        <span>没有收货地址的提示。。。</span>
+    </div>
+    <table class="table" id="goods">
+        <tr>
+            <td>商品名称</td>
+            <td colspan="3" th:text="${goods.goodsName}"></td>
+        </tr>
+        <tr>
+            <td>商品图片</td>
+            <td colspan="3"><img th:src="@{${goods.goodsImg}}" width="200" height="200"/></td>
+        </tr>
+        <tr>
+            <td>秒杀开始时间</td>
+        </tr>
+        <tr>
+            <td>商品原价</td>
+            <td colspan="3" th:text="${goods.goodsPrice}"></td>
+        </tr>
+        <tr>
+            <td>秒杀价</td>
+            <td colspan="3" th:text="${goods.seckillPrice}"></td>
+        </tr>
+        <tr>
+            <td>库存数量</td>
+            <td colspan="3" th:text="${goods.stockCount}"></td>
+        </tr>
+    </table>
+</div>
+</body>
+<script>
+</script>
+</html>
+```
+
+- ` <span th:if="${user eq null}">`可以明白controller往前端传user的原因，即user为空的话说明用户未登录，提示用户登录！
+
+  - 问答问：这里是不是做了重复判断？controller都能正常返回，说明针对User的参数解析器成功传递了User，说明没登录的话都看不到这个页面？
+
+    - 这是静态资源html，可以直接通过url访问（不一定是由Controller跳来的）。如下就是通过访问url`http://localhost:8080/goods/toDetail/2`直接来到的商品详情页，页面就会侦测到用户未登录并提示请登录：
+
+      <img src="zseckill.assets/image-20220401113603295.png" alt="image-20220401113603295" style="zoom:50%;" />
+
+8，重启项目，重新登录登录：
+
+来到商品列表页：
+
+![image-20220401112452367](zseckill.assets/image-20220401112452367.png)
+
+点击“详情”来到商品详情页：
+
+![image-20220401112519364](zseckill.assets/image-20220401112519364.png)
+
+9，这只是商品详情的最基本信息展示，还需要实现：秒杀按钮控制，开始/结束时间。
+
+#### 秒杀倒计时处理
+
+https://www.bilibili.com/video/BV1sf4y1L7KE?p=24&spm_id_from=pageDriver
+
+- 高赞网友：秒杀倒计时确实应该在前端，后端做秒杀状态即可；服务端控制秒杀给前端传数据还要浪费时间，时间来自后端也会导致服务器卡吧。
+  - 网友反驳：如果这个倒计时没有业务，是可以前端写，如果有业务，就不行

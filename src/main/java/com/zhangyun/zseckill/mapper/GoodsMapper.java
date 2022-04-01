@@ -22,4 +22,9 @@ public interface GoodsMapper extends BaseMapper<Goods> {
      * @return java.util.List<com.zhangyun.zseckill.vo.GoodsVo>
      **/
     List<GoodsVo> findGoodsVo();
+
+    /**
+     * 获取商品详情
+     * */
+    GoodsVo findGoodsVoByGoodsId(Long goodsId);
 }

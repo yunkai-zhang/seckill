@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.CookieValue;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.thymeleaf.util.StringUtils;
 
@@ -61,5 +62,20 @@ public class GoodsController {
         //把商品信息传入前端
         model.addAttribute("goodsList", goodsService.findGoodsVo());
         return "goodsList";
+    }
+
+
+    /*
+    * 跳往商品详情页
+    * */
+    @RequestMapping("/toDetail/{goodsId}")
+    //使用@PathVariable指定url路径中参数作为本形参的输入。
+    public String toDetail(Model model, User user,@PathVariable Long goodsId){
+        //把用户信息传入到前端
+        model.addAttribute("user",user);
+        //把商品信息传入前端
+        model.addAttribute("goods", goodsService.findGoodsVoByGoodsId(goodsId));
+        //由controller指定跳往的前端页面，跳转的时候model携带了要给前端的参数
+        return "goodsDetail";
     }
 }

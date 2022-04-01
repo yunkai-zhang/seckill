@@ -18,6 +18,7 @@
         id, goods_name, goods_title, goods_img, goods_detail, goods_price, goods_stock
     </sql>
 
+<!--    获取商品列表页-->
     <select id="findGoodsVo" resultType="com.zhangyun.zseckill.vo.GoodsVo">
         SELECT g.id,
                g.goods_name,
@@ -31,6 +32,23 @@
                sg.end_date
         FROM t_goods g
                  LEFT JOIN t_seckill_goods sg on g.id = sg.goods_id
+    </select>
+
+<!--    获取商品详情-->
+    <select id="findGoodsVoByGoodsId" resultType="com.zhangyun.zseckill.vo.GoodsVo">
+        SELECT g.id,
+               g.goods_name,
+               g.goods_title,
+               g.goods_img,
+               g.goods_price,
+               g.goods_stock,
+               sg.seckill_price,
+               sg.stock_count,
+               sg.start_date,
+               sg.end_date
+        FROM t_goods g
+                 LEFT JOIN t_seckill_goods sg on g.id = sg.goods_id
+        where g.id=#{goodsId}
     </select>
 
 </mapper>
