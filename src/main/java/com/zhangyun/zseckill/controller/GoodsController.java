@@ -81,7 +81,7 @@ public class GoodsController {
         Date endDate = goodsVo.getEndDate();
         Date nowDate = new Date();
         //秒杀状态
-        int seckillStatus = 0;
+        int secKillStatus = 0;
         //秒杀倒计时
         int remainSeconds = 0;
         if (nowDate.before(startDate)) {
@@ -89,18 +89,18 @@ public class GoodsController {
             remainSeconds = (int) ((startDate.getTime() - nowDate.getTime()) / 1000);
         } else if (nowDate.after(endDate)) {
             //秒杀已经结束
-            seckillStatus = 2;
+            secKillStatus = 2;
             remainSeconds = -1;
         } else {
             //秒杀进行中
-            seckillStatus = 1;
+            secKillStatus = 1;
             remainSeconds = 0;
         }
 
         //把商品信息传入前端
         model.addAttribute("remainSeconds", remainSeconds);
         model.addAttribute("goods", goodsVo);
-        model.addAttribute("seckillStatus", seckillStatus);
+        model.addAttribute("secKillStatus", secKillStatus);
 
         //由controller指定跳往的前端页面，跳转的时候model携带了要给前端的参数
         return "goodsDetail";

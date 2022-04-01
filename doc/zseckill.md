@@ -3119,13 +3119,18 @@ public interface GoodsMapper extends BaseMapper<Goods> {
   - 后端往前端传递的model中存储了secKillStatus ,能被前端的`<span th:if="${secKillStatus eq 0}">`使用，用于栈实不同的秒杀阶段
   - `<form id="secKillForm" method="post" action="/seckill/doSeckill">`是下一小节“秒杀按钮”的处理，这里不讲解
   - `function countDown()`实现的是倒计时的功能；` $("#countDown").text(remainSeconds - 1);`表示修改页面显示的秒数，`$("#remainSeconds").val(remainSeconds - 1);`表示修改前端的秒数变量本体，两者互相依赖缺一不可才能正确展示倒计时。
-
+  - `timeout`为setTimeout的返回值，为一个整数表示倒计时计时器的id；setTimeout表示每1000ms执行一下匿名函数；当remianSeconds==0时，会`if (timeout)`判断一下倒计时计时器是否还存在，存在的话就会清除倒计时计时器。[参考 setTimeout 和 clearTimeout_Tarafireworks的博客-CSDN博客_settimeout和cleartimeout](https://blog.csdn.net/weixin_44760073/article/details/119889308)
 - 高赞网友：秒杀倒计时确实应该在前端，后端做秒杀状态即可；服务端控制秒杀给前端传数据还要浪费时间，时间来自后端也会导致服务器卡吧。
   - 网友反驳：如果这个倒计时没有业务，是可以前端写，如果有业务，就不行
+- 我和高赞网友：这个代码有个问题，就是开始秒杀后，前端不再进行remainSeconds的减少，导致无法自动展示“秒杀已结束”。必须手动刷新页面，让后端给前端返回remainSeconds，前端才能判断出“秒杀已结束”。这个bug应该后续会改。
+  - 我：把timeout = setTimeout那几行执行倒计时的代码，也放到“秒杀进行中”的代码块中，也不能解决问题，因为remain从0开始减为负数，导致系统瞬间就结束了秒杀。
+
 
 2，编写后端代码，为前端提供`secKillStatus`，`remainSeconds`：
 
-![image-20220401142207151](zseckill.assets/image-20220401142207151.png)
+![image-20220401200021124](zseckill.assets/image-20220401200021124.png)
+
+- 注意：往model传的key的string内容，要和前端的接收参数一致。
 
 - 我理解控制时间的思想：
   - 请求后端的toDetails方法后，后端给前端返回一个初始时间；前端在这个初始时间的基础上，使用前端自己的语法（js）功能做倒计时；前端倒计时为0时会显示“秒杀进行中”。
@@ -3133,7 +3138,356 @@ public interface GoodsMapper extends BaseMapper<Goods> {
 
 3，换了台电脑没有本地数据库没法测试，所以数据库和redis一样，最好安装在远程。。
 
-https://www.bilibili.com/video/BV1sf4y1L7KE?p=24&spm_id_from=pageDriver
+4，到了本地有数据库的电脑操作；把数据库的时间调整法为当前时间的30s之后，成功看到倒计时的效果；且开始秒杀后倒计时会消失：
 
-8.37
+![image-20220401201356928](zseckill.assets/image-20220401201356928.png)
 
+![image-20220401201410228](zseckill.assets/image-20220401201410228.png)
+
+#### 秒杀按钮的处理
+
+前一小节代码中的与按钮有关的代码我没删，所以本节的前端代码就是前一小节的前端代码；本小节不涉及后段代码。
+
+1，页面中添加按钮：
+
+![image-20220401202004734](zseckill.assets/image-20220401202004734.png)
+
+- 用form表单收集要秒杀的商品的信息，尤其是本商品的goodsid；goodsid用一个设置为不可见的input组件来承载。
+
+- 网友问：这个form要是放在最外层是不是方便点
+  - 网友答：肯定放table里面啊，并排显示的
+
+2，js编写：
+
+![image-20220401203344341](zseckill.assets/image-20220401203344341.png)
+
+- 注意button的disabled属性不要写成disable！
+
+3，测试效果见前一小节。
+
+### 秒杀功能实现
+
+#### 后端代码编写
+
+1，秒杀在真实电商中有很多判断，这个项目就简单做两个判断：
+
+- 库存够不够
+- 每个用户只能秒杀购买一件商品，防止黄牛。
+
+2，Controller层新建一个SecKillController：
+
+```java
+package com.zhangyun.zseckill.controller;
+
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.zhangyun.zseckill.pojo.Order;
+import com.zhangyun.zseckill.pojo.SeckillOrder;
+import com.zhangyun.zseckill.pojo.User;
+import com.zhangyun.zseckill.service.IGoodsService;
+import com.zhangyun.zseckill.service.impl.OrderServiceImpl;
+import com.zhangyun.zseckill.service.impl.SeckillOrderServiceImpl;
+import com.zhangyun.zseckill.vo.GoodsVo;
+import com.zhangyun.zseckill.vo.RespBeanEnum;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.RequestMapping;
+
+@Controller
+@RequestMapping("/seckill")
+public class SecKillController {
+    //service层为controller层提供查询商品数据的服务
+    @Autowired
+    private IGoodsService goodsService;
+    //service层为controller层提供查询秒杀订单数据的服务
+    @Autowired
+    private SeckillOrderServiceImpl seckillOrderService;
+    //
+    @Autowired
+    private OrderServiceImpl orderService;
+
+    @RequestMapping("doSeckill")
+    public String doSeckill(Model model, User user, Long goodsId) {
+        //如果用户不存在，跳往登录页面
+        if (user == null) {
+            return "login";
+        }
+        //如果用户存在，传给前端，让前端能知道前端被展示的时候是否是用户已登录的状态
+        model.addAttribute("user", user);
+        GoodsVo goods = goodsService.findGoodsVoByGoodsId(goodsId);
+        //判断库存。用户可以自己修改前端，所以我们只能根据id自己去表里查真实的内存，而不能依赖前端返回的库存数据
+        if (goods.getStockCount() < 1) {
+            //前端收到后端传递来的“错误信息”，会做前端自己的处理。
+            model.addAttribute("errmsg", RespBeanEnum.EMPTY_STOCK.getMessage());
+            return "seckillFail";
+        }
+        /*
+        * 判断订单是否重复抢购：抓住userid和goodsid
+        *
+        * QueryWrapper是mybatisplus的包装类
+        * */
+        SeckillOrder seckillOrder = seckillOrderService.getOne(new
+                QueryWrapper<SeckillOrder>().eq("user_id", user.getId()).eq(
+                "goods_id",
+                goodsId));
+        if (seckillOrder != null) {//订单表中显示同一人抢了同一款商品（如iphone12），应拒绝本次秒杀请求
+            model.addAttribute("errmsg", RespBeanEnum.REPEATE_ERROR.getMessage());
+            return "seckillFail";
+        }
+        //如果库存够，且没有出现黄牛行为，则允许秒杀
+        Order order = orderService.seckill(user, goods);
+        model.addAttribute("order",order);
+        model.addAttribute("goods",goods);
+
+        //秒杀成功后去前端的订单页
+        return "orderDetail";
+    }
+
+}
+
+```
+
+- 想法：秒杀完后直接跳到订单页；正式来说秒杀完要去第三方支付和各种处理，本项目重点是秒杀，所以直接跳订单详情页，其他的步骤忽略掉。
+- 网友问：为何要写在这里，这不是service层该做的事吗
+  - 网友答：+1 可能是老师觉得方便就直接写了，后面可以自己移动一下
+  - 网友：确实，controll层逻辑不宜太多。
+- 本类中QueryWrapper的用法：[参考文章 mybatis plus 条件构造器queryWrapper学习_bird_tp的博客-CSDN博客_querywrapper](https://blog.csdn.net/bird_tp/article/details/105587582)
+- 注意RequestMapping标记的代码的url请求中，驼峰命名的字母大小写和前端的请求是否一致，否则会404。
+
+3，给RespBeanEnum枚举中加入空库存“EMPTY_STOCK”和“REPEATE_ERROR”：
+
+![image-20220402003226200](zseckill.assets/image-20220402003226200.png)
+
+4，在OrderService中声明方法seckill，这个方法会做秒杀：
+
+![image-20220401233711158](zseckill.assets/image-20220401233711158.png)
+
+5，OrderServiceImpl中实现seckill方法：
+
+```java
+package com.zhangyun.zseckill.service.impl;
+
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.zhangyun.zseckill.mapper.OrderMapper;
+import com.zhangyun.zseckill.pojo.Order;
+import com.zhangyun.zseckill.pojo.SeckillGoods;
+import com.zhangyun.zseckill.pojo.SeckillOrder;
+import com.zhangyun.zseckill.pojo.User;
+import com.zhangyun.zseckill.service.IOrderService;
+import com.zhangyun.zseckill.service.ISeckillGoodsService;
+import com.zhangyun.zseckill.vo.GoodsVo;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.Date;
+
+/**
+ * <p>
+ *  服务实现类
+ * </p>
+ *
+ * @author zhangyun
+ * @since 2022-03-31
+ */
+@Service
+public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements IOrderService {
+
+    //注入操作秒杀商品表的服务，用于减少库存
+    @Autowired
+    private ISeckillGoodsService seckillGoodsService;
+    //注入操作订单表的mapper bean，用于修改order表
+    @Autowired
+    private OrderMapper orderMapper;
+    //注入操作秒杀订单表的service层服务
+    @Autowired
+    private SeckillOrderServiceImpl seckillOrderService;
+
+
+    /**
+     * 秒杀
+     * */
+    @Override
+    public Order seckill(User user, GoodsVo goodsVo) {
+        /*
+        * 秒杀首先要减少库存，减少的是秒杀商品表中的库存
+        *
+        * 先获取某id的秒杀商品的bean，修改bean中记录的库存后，把bean传入updateById方法来更新秒杀商品表的库存；这么做的好处是免了自己写mapper.xml也能做crud了。
+        * ISeckillGoodsService继承了IService，所以seckillGoodsService才能用getone方法。
+        * */
+        SeckillGoods seckillGoods = seckillGoodsService.getOne(new QueryWrapper<SeckillGoods>().eq("goods_id", goodsVo.getId()));
+        seckillGoods.setStockCount(seckillGoods.getStockCount() - 1);
+        //更新秒杀商品表中的库存。
+        seckillGoodsService.updateById(seckillGoods);
+        //生成订单
+        Order order = new Order();
+        order.setUserId(user.getId());
+        order.setGoodsId(goodsVo.getId());
+        order.setDeliveryAddrId(0L);
+        order.setGoodsName(goodsVo.getGoodsName());
+        order.setGoodsCount(1);
+        order.setGoodsPrice(seckillGoods.getSeckillPrice());
+        order.setOrderChannel(1);
+        order.setStatus(0);
+        order.setCreateDate(new Date());
+        orderMapper.insert(order);
+        /*
+        * 除了生成订单之外，还要生成秒杀订单。之所以要先生成订单，是因为秒杀订单中有一个字段“订单id”是和订单做关联的
+        * */
+        //生成秒杀订单。id字段是自增的不用管，其他的几个字段要填一下。
+        SeckillOrder tSeckillOrder = new SeckillOrder();
+        tSeckillOrder.setUserId(user.getId());
+        tSeckillOrder.setOrderId(order.getId());
+        tSeckillOrder.setGoodsId(goodsVo.getId());
+        seckillOrderService.save(tSeckillOrder);
+
+        //后端的订单相关处理完毕，把订单信息返回给前端展示
+        return order;
+    }
+}
+
+```
+
+- 我疑问：整体做了什么我能理解，但是秒杀的操作难道不是应该放到SeckillOrderServiceImpl.java中吗，这里秒杀的两个表和常规的两个表的处理界限不是很清楚。
+
+- 网友吐槽：是真的混乱，service层调用service层
+  - 网友反驳：本来就能业务调业务啊。
+
+- 网友问：没有事务和锁怎么解决超卖
+  - 网友答：后面40集会优化这个问题；会逐步深入，目前缺事务+多线程+缓存
+
+#### 前端代码编写
+
+1，拷贝OrderDetail.html页面（秒杀成功展示的订单页）进项目：
+
+![image-20220402003545928](zseckill.assets/image-20220402003545928.png)
+
+```html
+<!DOCTYPE HTML>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>订单详情</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <!-- jquery -->
+    <script type="text/javascript" th:src="@{/js/jquery.min.js}"></script>
+    <!-- bootstrap -->
+    <link rel="stylesheet" type="text/css" th:href="@{/bootstrap/css/bootstrap.min.css}" />
+    <script type="text/javascript" th:src="@{/bootstrap/js/bootstrap.min.js}"></script>
+    <!-- layer -->
+    <script type="text/javascript" th:src="@{/layer/layer.js}"></script>
+    <!-- common.js -->
+    <script type="text/javascript" th:src="@{/js/common.js}"></script>
+</head>
+<body>
+<div class="panel panel-default">
+    <div class="panel-heading">秒杀订单详情</div>
+    <table class="table" id="order">
+        <tr>
+            <td>商品名称</td>
+            <td th:text="${goods.goodsName}" colspan="3"></td>
+        </tr>
+        <tr>
+            <td>商品图片</td>
+            <td colspan="2"><img th:src="@{${goods.goodsImg}}" width="200" height="200" /></td>
+        </tr>
+        <tr>
+            <td>订单价格</td>
+            <td colspan="2" th:text="${order.goodsPrice}"></td>
+        </tr>
+        <tr>
+            <td>下单时间</td>
+            <td th:text="${#dates.format(order.createDate, 'yyyy-MM-dd HH:mm:ss')}" colspan="2"></td>
+        </tr>
+        <tr>
+            <td>订单状态</td>
+            <td >
+                <span th:if="${order.status eq 0}">未支付</span>
+                <span th:if="${order.status eq 1}">待发货</span>
+                <span th:if="${order.status eq 2}">已发货</span>
+                <span th:if="${order.status eq 3}">已收货</span>
+                <span th:if="${order.status eq 4}">已退款</span>
+                <span th:if="${order.status eq 5}">已完成</span>
+            </td>
+            <td>
+                <button class="btn btn-primary btn-block" type="submit" id="payButton">立即支付</button>
+            </td>
+        </tr>
+        <tr>
+            <td>收货人</td>
+            <td colspan="2">XXX  18012345678</td>
+        </tr>
+        <tr>
+            <td>收货地址</td>
+            <td colspan="2">上海市浦东区世纪大道</td>
+        </tr>
+    </table>
+</div>
+
+</body>
+</html>
+```
+
+2，拷贝OrderDetail.html页面（秒杀成功展示的订单页）进项目：
+
+![image-20220402003717728](zseckill.assets/image-20220402003717728.png)
+
+```html
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+秒杀失败：<p th:text="${errmsg}"></p>
+</body>
+</html>
+```
+
+#### 测试
+
+1，启动项目，登录，商品详情页进行秒杀：
+
+![image-20220402003939389](zseckill.assets/image-20220402003939389.png)
+
+2，秒杀目前只涉及了order seckilloder seckillgoods三个表，没有涉及goods表；点击秒杀按钮前先查看涉及的三个表的重点数据：
+
+![image-20220402004121426](zseckill.assets/image-20220402004121426.png)
+
+![image-20220402004301281](zseckill.assets/image-20220402004301281.png)
+
+![image-20220402004324950](zseckill.assets/image-20220402004324950.png)
+
+3，点击秒杀
+
+4，成功跳转到“订单页”，且“订单状态”为”未支付“：
+
+![image-20220402005002821](zseckill.assets/image-20220402005002821.png)
+
+5，刷新数据库，查看数据库的order seckilloder seckillgoods三个表；三个表都没有被更新，说明后端没成功更新数据库：
+
+![image-20220402005242140](zseckill.assets/image-20220402005242140.png)
+
+6，现在来排错
+
+7，在关键函数seckill打断点，debug：
+
+![image-20220402005818764](zseckill.assets/image-20220402005818764.png)
+
+8，重新登录页面，来到商品列表页，神奇的发现库存是9，说明数据库数据没错：
+
+![image-20220402005942781](zseckill.assets/image-20220402005942781.png)
+
+9，之前navicat中点击“刷新”可能没刷新展示成功，我重启了navicat，再进去果然发现数据都是已经正常更新了，所以是navicat软件的展示问题，我的代码是正常的；所以debug了一个寂寞（）。。：
+
+![image-20220402010447205](zseckill.assets/image-20220402010447205.png)
+
+![image-20220402010507072](zseckill.assets/image-20220402010507072.png)
+
+![image-20220402010530314](zseckill.assets/image-20220402010530314.png)
+
+
+
+### 秒杀功能总结
+
+https://www.bilibili.com/video/BV1sf4y1L7KE?p=27&spm_id_from=pageDriver
