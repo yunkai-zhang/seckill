@@ -3,6 +3,7 @@ package com.zhangyun.zseckill.controller;
 import com.zhangyun.zseckill.pojo.User;
 import com.zhangyun.zseckill.service.IGoodsService;
 import com.zhangyun.zseckill.service.IUserService;
+import com.zhangyun.zseckill.vo.GoodsVo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -14,6 +15,7 @@ import org.thymeleaf.util.StringUtils;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
+import java.util.Date;
 
 @Controller
 @RequestMapping("/goods")
@@ -73,8 +75,33 @@ public class GoodsController {
     public String toDetail(Model model, User user,@PathVariable Long goodsId){
         //把用户信息传入到前端
         model.addAttribute("user",user);
+        //获取到goods中定义的秒杀时间段信息，并和当前时间对比来判断
+        GoodsVo goodsVo = goodsService.findGoodsVoByGoodsId(goodsId);
+        Date startDate = goodsVo.getStartDate();
+        Date endDate = goodsVo.getEndDate();
+        Date nowDate = new Date();
+        //秒杀状态
+        int seckillStatus = 0;
+        //秒杀倒计时
+        int remainSeconds = 0;
+        if (nowDate.before(startDate)) {
+            //秒杀还未开始；seckillStatus是初始值0
+            remainSeconds = (int) ((startDate.getTime() - nowDate.getTime()) / 1000);
+        } else if (nowDate.after(endDate)) {
+            //秒杀已经结束
+            seckillStatus = 2;
+            remainSeconds = -1;
+        } else {
+            //秒杀进行中
+            seckillStatus = 1;
+            remainSeconds = 0;
+        }
+
         //把商品信息传入前端
-        model.addAttribute("goods", goodsService.findGoodsVoByGoodsId(goodsId));
+        model.addAttribute("remainSeconds", remainSeconds);
+        model.addAttribute("goods", goodsVo);
+        model.addAttribute("seckillStatus", seckillStatus);
+
         //由controller指定跳往的前端页面，跳转的时候model携带了要给前端的参数
         return "goodsDetail";
     }
