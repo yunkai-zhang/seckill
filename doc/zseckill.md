@@ -1952,28 +1952,37 @@ public class GoodsController {
 - redis可以做数据库，缓存，消息中间件
 - 本项目redis只有单体，没做集群（可以后期自己改进）。
 
-#### 安装redis
+#### Ubuntu安装redis
 
 1，要安装redis5.0.5，原因：
 
 - 5版本是比较主流的
-
 - 虽然6版本引入了多线程，但是6版本的多线程是针对网络传输套接字，对数据操作没太大影响；用5就性能不错了。
   - [参考阅读Redis单线程为什么这么快？看完秒懂了... - 小姜姜 - 博客园 (cnblogs.com)](https://www.cnblogs.com/linkeke/p/15683355.html)
-  
-- 下面的是centos安装版本，**ubuntu安装参考**[(22条消息) Ubuntu安装Redis及使用_hzlarm的博客-CSDN博客_ubuntu安装redis](https://blog.csdn.net/hzlarm/article/details/99432240)
-  - 我没能执行教程的最后一步sudo make install（看报错提示应该是”目录已存在，不能再执行“的意思），就能在`/usr/local/redis`运行redisserver。经过前后对比，发现`/usr/local/bin`中生成了redisserver rediscli。我感觉不在redisserver目录下也能运行redisserver很**神奇**，目前还不知道原因。不过redis.conf在`/usr/local/redis`中。
-  
-    ![image-20220402222452294](zseckill.assets/image-20220402222452294.png)
-  
-    - 不过不能在redis-server前带`./`
 
+2，**ubuntu安装参考**[(22条消息) Ubuntu安装Redis及使用_hzlarm的博客-CSDN博客_ubuntu安装redis](https://blog.csdn.net/hzlarm/article/details/99432240)：
 
-2，登录[官网](https://download.redis.io/releases/)下载
+![image-20220402225507848](zseckill.assets/image-20220402225507848.png)
+
+- 我没能执行教程的最后一步sudo make install（看报错提示应该是”目录已存在，不能再执行“的意思），就能在`/usr/local/redis`运行redisserver。经过前后对比，发现`/usr/local/bin`中生成了redisserver rediscli。我感觉不在redisserver目录下也能运行redisserver很**神奇**，目前还不知道原因。不过redis.conf在`/usr/local/redis`中。
+
+  ![image-20220402222452294](zseckill.assets/image-20220402222452294.png)
+
+  - 不过注意现在不能在启动redisserver的命令的redis-server前带`./`，因为redisserver文件不在本目录中。
+
+3，redis.conf的配置倒是可以参考“centos安装redis”
+
+> ubuntu系统的话，禁止做下面的Centos的安装步骤！！！而应该参考本节中的安装方式。
+
+> !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+#### centos安装redis
+
+1，在Centos系统安装redis的话，登录[官网](https://download.redis.io/releases/)下载
 
 ![image-20220329201151818](zseckill.assets/image-20220329201151818.png)
 
-3，把压缩包通过xshell上传到本地虚拟机，并解压`tar zxvf redis-5.0.5.tar.gz `：
+2，把压缩包通过xshell上传到本地虚拟机，并解压`tar zxvf redis-5.0.5.tar.gz `：
 
 ![image-20220329205228118](zseckill.assets/image-20220329205228118.png)
 
@@ -3723,6 +3732,7 @@ apt-get install mysql-server mysql-common
 - 安装过程中会让设置密码，mysql用户`root`，对应密码`123456`。
 - [参考教程](https://blog.csdn.net/weixin_42209572/article/details/98983741)
   - 解压安装的方式太坑了，，还是一步到位舒服，之前至少浪费了1个小时各种debug；不过主要还是错用了centos版本的安装教程，后悔！！！。
+  - 本次安装都是根据本参考教程做的。
 
 3，启动和关闭mysql服务器：
 
@@ -3855,7 +3865,11 @@ grant all on *.* to 'zhangyun'@'%';
 
 ![image-20220402220145369](zseckill.assets/image-20220402220145369.png)
 
-10，[参考][(22条消息) 解决Unknown collation: ‘utf8mb4_0900_ai_ci‘_跨行过来写代码的的博客-CSDN博客](https://blog.csdn.net/weixin_50007878/article/details/122192340)，修改文件为如下：
+10，[参考][(22条消息) 解决Unknown collation: ‘utf8mb4_0900_ai_ci‘_跨行过来写代码的的博客-CSDN博客](https://blog.csdn.net/weixin_50007878/article/details/122192340)：
+
+![image-20220402230448928](zseckill.assets/image-20220402230448928.png)
+
+修改文件为如下：
 
 ```mysql
 /*
