@@ -1957,8 +1957,17 @@ public class GoodsController {
 1，要安装redis5.0.5，原因：
 
 - 5版本是比较主流的
+
 - 虽然6版本引入了多线程，但是6版本的多线程是针对网络传输套接字，对数据操作没太大影响；用5就性能不错了。
   - [参考阅读Redis单线程为什么这么快？看完秒懂了... - 小姜姜 - 博客园 (cnblogs.com)](https://www.cnblogs.com/linkeke/p/15683355.html)
+  
+- 下面的是centos安装版本，**ubuntu安装参考**[(22条消息) Ubuntu安装Redis及使用_hzlarm的博客-CSDN博客_ubuntu安装redis](https://blog.csdn.net/hzlarm/article/details/99432240)
+  - 我没能执行教程的最后一步sudo make install（看报错提示应该是”目录已存在，不能再执行“的意思），就能在`/usr/local/redis`运行redisserver。经过前后对比，发现`/usr/local/bin`中生成了redisserver rediscli。我感觉不在redisserver目录下也能运行redisserver很**神奇**，目前还不知道原因。不过redis.conf在`/usr/local/redis`中。
+  
+    ![image-20220402222452294](zseckill.assets/image-20220402222452294.png)
+  
+    - 不过不能在redis-server前带`./`
+
 
 2，登录[官网](https://download.redis.io/releases/)下载
 
@@ -2103,7 +2112,7 @@ spring:
   # redis配置
   redis:
     # 服务器地址
-    host: 120.53.244.17
+    host: 192.168.187.128
     # 端口号
     port: 6379
     # 默认操作的数据库号
@@ -2122,6 +2131,8 @@ spring:
         # 最小空闲连接，默认0
         min-idle: 5
 ```
+
+- 由于远程服务器中毒，后面改用本地虚拟机；这里填本地虚拟机的ip可以在xshell的连接设置中看到，**不一定是127.0.0.1**！！
 
 4，**确保redisserver已启动**
 
@@ -3490,11 +3501,11 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
 ![image-20220402093912618](zseckill.assets/image-20220402093912618.png)
 
-- 问问问：这个测试及之后的测试我都没实测，实测一下。
-
-11，把本地数据库的的秒杀商品表的库存减为0，再点击秒杀，会看到库存不足的提示（防超卖）：
+11，把本地数据库的的秒杀商品表的库存减为0，并保存修改；再点击秒杀，会看到库存不足的提示（防超卖）：
 
 ![image-20220402094116012](zseckill.assets/image-20220402094116012.png)
+
+![image-20220402143807069](zseckill.assets/image-20220402143807069.png)
 
 - 因为代码中，判断库存在判断黄牛之前；所以虽然已有订单，但是还来不及触发防黄牛，就在防超卖的代码处禁止了本次秒杀行为。
 
@@ -3546,6 +3557,466 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
 
 
-## JMeter简单使用
+## 压测
 
-https://www.bilibili.com/video/BV1sf4y1L7KE?p=28&spm_id_from=pageDriver
+### JMeter简单使用
+
+#### 简介
+
+1，Jmeter是Apache基于java的一个压力测试工具，可以用来对软件做一些压力测试。官网介绍：[Apache JMeter - Apache JMeter™](https://jmeter.apache.org/)
+
+2，运维要求熟练掌握，java后端不要求深入掌握JMeter。
+
+#### 下载安装
+
+1，官网下载[Apache JMeter - Download Apache JMeter](https://jmeter.apache.org/download_jmeter.cgi)：
+
+![image-20220402150432207](zseckill.assets/image-20220402150432207.png)
+
+- 下载binary不用编译。上面是linux版，下面是windows版。
+- 我：老师用的5.3，我在官网只找到5.4.3，只使用基本功能应该差不多。
+
+2，下载后解压，点进项目目录，可以看到是一个Jmeter比较标准的java工程：
+
+![image-20220402151127743](zseckill.assets/image-20220402151127743.png)
+
+3，在bin目录下，双击打开jmeter.bat；会弹出cmd和Jmeter软件：
+
+![image-20220402151339751](zseckill.assets/image-20220402151339751.png)
+
+![image-20220402151436639](zseckill.assets/image-20220402151436639.png)
+
+4，把语言调成中文：
+
+![image-20220402151536841](zseckill.assets/image-20220402151536841.png)
+
+#### JMeter配置文件修改
+
+1，关闭jmeter（叉掉cmd页面即可），修改jmeter的配置文件：
+
+![image-20220402151748803](zseckill.assets/image-20220402151748803.png)
+
+2，把默认语言改成中文：
+
+![image-20220402151943327](zseckill.assets/image-20220402151943327.png)
+
+3，搜索`sampleresult.default.encoding`，修改编码方式为utf8，防止中文乱码：
+
+![image-20220402152208656](zseckill.assets/image-20220402152208656.png)
+
+4，修改完毕后记得点击保存！：
+
+5，重新运行Jmeter，就会按照配置文件指定的方式启动了：
+
+![image-20220402152339311](zseckill.assets/image-20220402152339311.png)
+
+#### 高并发测试的一些概念
+
+1，一般准确来说，描述系统对并发的承受性时，应该问：在并发数为XX时，QPS是多少，或TPS是多少？
+
+- QPS：每秒查询率，即一台服务器每秒能做的查询的次数。
+
+- TPS：每秒事务数；这里的事务不是数据库那种事务，这里的事务指“客户机发起请求时开始计时，收到服务器响应后结束计时”，用这个时间差来计算使用的时间以及完成的一个事务的个数。 
+
+- TPS和QPS的区别：这个问题开始，我认为这两者应该是同一个东西,但在知乎上看到他们的英文名，现在我认为：
+  - QPS 每秒能处理查询数目，但现在一般也用于单服务接口每秒能处理请求数。
+  - TPS 每秒处理的事务数目，如果完成该事务仅为单个服务接口，我们也可以认为它就是QPS。
+  - 参考[(22条消息) 压力测试概念及方法(TPS/并发量)_Andy____Li的博客-CSDN博客_压测tps](https://blog.csdn.net/m0_37263637/article/details/88749318)
+
+#### 开始测试
+
+1，JMeter添加线程组：
+
+![image-20220402160904187](zseckill.assets/image-20220402160904187.png)
+
+2，线程组设置：
+
+![image-20220402162117776](zseckill.assets/image-20220402162117776.png)
+
+- 线程数：写几就为几个线程
+- Ramp-Up：在几秒内启动指定的线程数
+  - 设定为0，表示让软件自己选择。
+
+- 循环：
+  - 设定为1，表示循环一次，执行10个线程；
+  - 如果设定为10，则10个线程会循环10次，最终请求服务器的线程数会达到100个。
+
+3，线程组这再右键，添加配置元件；本例选择“http请求默认值”：
+
+![image-20220402162227213](zseckill.assets/image-20220402162227213.png)
+
+- 这样后面所有的请求，这里提前给请求配置默认值，这个默认值都是相同的，不需要一点点去动了
+
+4，配置Http请求默认值：
+
+![image-20220402162538846](zseckill.assets/image-20220402162538846.png)
+
+5，再在线程组-右键，添加取样器：
+
+![image-20220402162625123](zseckill.assets/image-20220402162625123.png)
+
+6，编写http请求取样器；配置好后，我们的请求就有了：
+
+![image-20220402163019445](zseckill.assets/image-20220402163019445.png)
+
+- 这里的“协议 端口号 ”等，因为之前准备了“http请求默认值”，就不需要再配置了。
+
+- 在“路径”填写查询商品列表的接口`/goods/toList`
+
+7，既然有了请求，那么肯定有相应的返回的结果，我们也得查看这个输出的结果；右键“线程组”，选择监听器，添加如下三个监听器：
+
+![image-20220402163303711](zseckill.assets/image-20220402163303711.png)
+
+![image-20220402163340789](zseckill.assets/image-20220402163340789.png)
+
+8，以防万一，把三个监听器的默认内容都清除一遍：
+
+![image-20220402163646774](zseckill.assets/image-20220402163646774.png)
+
+9，启动项目，来到商品列表页：
+
+![image-20220402164052656](zseckill.assets/image-20220402164052656.png)
+
+10，来到jmeter，点击启动箭头；会弹出弹框问要不要保存线程组的计划，点击no：
+
+![image-20220402164144293](zseckill.assets/image-20220402164144293.png)
+
+![image-20220402164239800](zseckill.assets/image-20220402164239800.png)
+
+- 因为这里知识windows系统下的小测试，不保存它；等到真正得linux系统的正式测试时，再保存！所以点击“No”。
+  - 后面会把JMeter安装在服务器中，然后通过服务器做一些压测。
+
+11，JMeter会展示测试结果，先看“查看结果树”：
+
+![image-20220402164751180](zseckill.assets/image-20220402164751180.png)
+
+![image-20220402164808592](zseckill.assets/image-20220402164808592.png)
+
+![image-20220402164838337](zseckill.assets/image-20220402164838337.png)
+
+- 响应的是一个页面
+
+12，查看聚合报告：
+
+![image-20220402165105040](zseckill.assets/image-20220402165105040.png)
+
+- 样本==10，因为我们一共请求了10次
+- 吞吐量可以简单地理解为QPS
+
+13，用表格查看结果，这里有每一个请求对应的相应的比较详细的数据：
+
+![image-20220402165255335](zseckill.assets/image-20220402165255335.png)
+
+### Ubuntu Linux安装Mysql
+
+#### 安装
+
+1，安装方式有很多种，可以下载包解压安装，但是比较麻烦，要配置很多环境变量；这里使用在线安装的方式，在线安装的最大好处就是可以自动配置很多环境变量。
+
+2，老师是centos的系统，安装方式不一样，我参考网上的方法来安装；注意**一定要是Ubuntu系统**的安装教程才行！！！两步轻松安装：
+
+```
+sudo apt-get update 
+apt-get install mysql-server mysql-common
+```
+
+- 安装过程中会让设置密码，mysql用户`root`，对应密码`123456`。
+- [参考教程](https://blog.csdn.net/weixin_42209572/article/details/98983741)
+  - 解压安装的方式太坑了，，还是一步到位舒服，之前至少浪费了1个小时各种debug；不过主要还是错用了centos版本的安装教程，后悔！！！。
+
+3，启动和关闭mysql服务器：
+
+```
+service mysql start
+service mysql stop
+```
+
+启动：
+
+![image-20220402210156301](zseckill.assets/image-20220402210156301.png)
+
+#### 查看是否安装成功
+
+1，确认是否启动成功，mysql节点处于LISTEN状态表示启动成功
+
+```
+sudo netstat -tap | grep mysql
+```
+
+- 使用sudo的话，会验证linux登录用户的密码
+
+![image-20220402210238487](zseckill.assets/image-20220402210238487.png)
+
+#### 进入mysql shell界面
+
+1，任何位置输入语句：
+
+```
+mysql -u root -p
+```
+
+- root是mysql数据库的用户名；会提示输入密码，输入123456即对应密码
+
+![image-20220402210409568](zseckill.assets/image-20220402210409568.png)
+
+#### 解决利用sqoop导入MySQL中文乱码的问题
+
+1，解决利用sqoop导入MySQL中文乱码的问题（可以插入中文，但不能用sqoop导入中文）导致导入时中文乱码的原因是character_set_server默认设置是latin1，如下图：
+
+![img](zseckill.assets/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3dlaXhpbl80MjIwOTU3Mg==,size_16,color_FFFFFF,t_70.png)
+
+2，可以单个设置修改编码方式set character_set_server=utf8;但是重启会失效，建议按以下方式修改编码方式。
+
+1. 编辑配置文件。`sudo vim /etc/mysql/mysql.conf.d/mysqld.cnf`
+2. 在[mysqld]下添加一行`character_set_server=utf8`。如下图：
+
+![image-20220402210829133](zseckill.assets/image-20220402210829133.png)
+
+3，重启MySQL服务。`service mysql restart`
+
+![image-20220402210938787](zseckill.assets/image-20220402210938787.png)
+
+4，登陆MySQL，并查看MySQL目前设置的编码。`show variables like "char%";`
+
+![image-20220402211056345](zseckill.assets/image-20220402211056345.png)
+
+5，完成编码方式的修改后，即解决了sqoop导入MySQL中文乱码的问题。至此，ubuntu系统上顺利完成安装mysql数据库。
+
+#### navicat连接虚拟机中的数据库
+
+1，navicat新建连接，点击测试连接；密码为123456，主机名填xshell访问本地虚拟机时连的ip：
+
+![image-20220402212229888](zseckill.assets/image-20220402212229888.png)
+
+- mysql不允许连接，要设置远程访问。mysql设置远程访问，虽然是本机，但是ip不是127.0.0.1这种，就还是当做了远程访问：
+
+2，root用户设置远程访问安全性太差，新建mysql用户：
+
+```
+create user 'zhangyun'@'%' identified by '1234';
+```
+
+- 用户zhangyun的密码是1234
+
+![image-20220402212826938](zseckill.assets/image-20220402212826938.png)
+
+- %表示任何的ip地址都能访问，像之前的
+
+root是localhost的，所以不能访问
+
+<img src="zseckill.assets/image-20220402212705196.png" alt="image-20220402212705196" style="zoom:50%;" />
+
+3，给用户zhangyun授权：
+
+```
+grant all on *.* to 'zhangyun'@'%';
+```
+
+- `all`：表示所有权限
+- `on *.*` ：表示权限关于所有的数据库的所有表
+
+- `'zhangyun'@'%' `：表示给zhangyun用户从所有的主机ip上来都能访问。
+
+![image-20220402213226298](zseckill.assets/image-20220402213226298.png)
+
+4，回到navicat，不用mysql的root用户连接了，改成用zhangyun用户连接，密码时设置的1234：
+
+![image-20220402213407906](zseckill.assets/image-20220402213407906.png)
+
+- 发现还是连接不上，应该有别的问题。
+
+5，[参考文章](https://blog.csdn.net/delphi308/article/details/106360636)，类似redis得注释掉bind127.0.0.1：
+
+![image-20220402214710229](zseckill.assets/image-20220402214710229.png)
+
+- 老师的系统是centos，安装方式也不一样，所以他没注释掉bind也可能是被允许的。
+
+6，重新测试连接，成功！：
+
+![image-20220402214831751](zseckill.assets/image-20220402214831751.png)
+
+7，在ubuntu的mysql服务中新建数据库：
+
+![image-20220402215154181](zseckill.assets/image-20220402215154181.png)
+
+8，导出window下的mysql服务的内容，包含表和数据，导出到桌面：
+
+![image-20220402215302806](zseckill.assets/image-20220402215302806.png)
+
+9，在ubuntu的seckill数据库中，执行sql，从而导入表和数据：
+
+![image-20220402215623526](zseckill.assets/image-20220402215623526.png)
+
+![image-20220402215527838](zseckill.assets/image-20220402215527838.png)
+
+![image-20220402215653477](zseckill.assets/image-20220402215653477.png)
+
+- 发现导入错误，在查询界面赋值sql语句看看详情
+
+![image-20220402220145369](zseckill.assets/image-20220402220145369.png)
+
+10，[参考][(22条消息) 解决Unknown collation: ‘utf8mb4_0900_ai_ci‘_跨行过来写代码的的博客-CSDN博客](https://blog.csdn.net/weixin_50007878/article/details/122192340)，修改文件为如下：
+
+```mysql
+/*
+ Navicat Premium Data Transfer
+
+ Source Server         : connection4seckill
+ Source Server Type    : MySQL
+ Source Server Version : 80026
+ Source Host           : localhost:3306
+ Source Schema         : seckill
+
+ Target Server Type    : MySQL
+ Target Server Version : 80026
+ File Encoding         : 65001
+
+ Date: 02/04/2022 21:53:15
+*/
+
+SET NAMES utf8;
+SET FOREIGN_KEY_CHECKS = 0;
+
+-- ----------------------------
+-- Table structure for t_goods
+-- ----------------------------
+DROP TABLE IF EXISTS `t_goods`;
+CREATE TABLE `t_goods`  (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '商品ID',
+  `goods_name` varchar(16) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL COMMENT '商品名称',
+  `goods_title` varchar(64) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL COMMENT '商品标题',
+  `goods_img` varchar(64) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL COMMENT '商品图片',
+  `goods_detail` longtext CHARACTER SET utf8 COLLATE utf8_general_ci NULL COMMENT '商品详情',
+  `goods_price` decimal(10, 2) NULL DEFAULT 0.00 COMMENT '商品价格',
+  `goods_stock` int NULL DEFAULT 0 COMMENT '商品库存，-1表示没有限制',
+  PRIMARY KEY (`id`) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 3 CHARACTER SET = utf8 COLLATE = utf8_general_ci ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Records of t_goods
+-- ----------------------------
+INSERT INTO `t_goods` VALUES (1, 'IPHONE12', 'IPHONE12 64GB', '/img/iphone12.png', 'IPHONE 12 64GB', 6299.00, 100);
+INSERT INTO `t_goods` VALUES (2, 'IPHONE12 PR0', 'IPHONE12 PRO 128GB', '/img/iphone12pro.png', 'IPHONE12 PRO 128GB', 9299.00, 100);
+
+-- ----------------------------
+-- Table structure for t_order
+-- ----------------------------
+DROP TABLE IF EXISTS `t_order`;
+CREATE TABLE `t_order`  (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '订单ID',
+  `user_id` bigint NULL DEFAULT NULL COMMENT '用户ID',
+  `goods_id` bigint NULL DEFAULT NULL COMMENT '商品ID',
+  `delivery_addr_id` bigint NULL DEFAULT NULL COMMENT '收货地址ID',
+  `goods_name` varchar(16) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL COMMENT '冗余过来的商品名称',
+  `goods_count` int NULL DEFAULT 0 COMMENT '商品数量',
+  `goods_price` decimal(10, 2) NULL DEFAULT 0.00 COMMENT '商品单价',
+  `order_channel` tinyint NULL DEFAULT 0 COMMENT '1pc,2android,3ios',
+  `status` tinyint NULL DEFAULT 0 COMMENT '订单状态，0新建未支付，1已支付，2已发货，3已收货，4已退款，5己完成',
+  `create_date` datetime NULL DEFAULT NULL COMMENT '订单的创建时间',
+  `pay_date` datetime NULL DEFAULT NULL COMMENT '支付时间',
+  PRIMARY KEY (`id`) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 13 CHARACTER SET = utf8 COLLATE = utf8_general_ci ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Records of t_order
+-- ----------------------------
+INSERT INTO `t_order` VALUES (12, 18012345678, 1, 0, 'IPHONE12', 1, 629.00, 1, 0, '2022-04-02 00:48:43', NULL);
+
+-- ----------------------------
+-- Table structure for t_seckill_goods
+-- ----------------------------
+DROP TABLE IF EXISTS `t_seckill_goods`;
+CREATE TABLE `t_seckill_goods`  (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '秒杀商品ID',
+  `goods_id` bigint NULL DEFAULT NULL COMMENT '商品ID',
+  `seckill_price` decimal(10, 2) NULL DEFAULT 0.00 COMMENT '秒杀价',
+  `stock_count` int NULL DEFAULT NULL COMMENT '库存数量',
+  `start_date` datetime NULL DEFAULT NULL COMMENT '秒杀开始时间',
+  `end_date` datetime NULL DEFAULT NULL COMMENT '秒杀结束时间',
+  PRIMARY KEY (`id`) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 3 CHARACTER SET = utf8 COLLATE = utf8_general_ci ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Records of t_seckill_goods
+-- ----------------------------
+INSERT INTO `t_seckill_goods` VALUES (1, 1, 629.00, 9, '2022-04-01 20:14:00', '2022-04-02 20:08:00');
+INSERT INTO `t_seckill_goods` VALUES (2, 2, 929.00, 10, '2020-11-01 08:00:00', '2020-11-01 09:00:00');
+
+-- ----------------------------
+-- Table structure for t_seckill_order
+-- ----------------------------
+DROP TABLE IF EXISTS `t_seckill_order`;
+CREATE TABLE `t_seckill_order`  (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '秒杀订单ID',
+  `user_id` bigint NULL DEFAULT NULL COMMENT '用户ID',
+  `order_id` bigint NULL DEFAULT NULL COMMENT '订单ID',
+  `goods_id` bigint NULL DEFAULT NULL COMMENT '商品ID',
+  PRIMARY KEY (`id`) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 4 CHARACTER SET = utf8 COLLATE = utf8_general_ci ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Records of t_seckill_order
+-- ----------------------------
+INSERT INTO `t_seckill_order` VALUES (3, 18012345678, 12, 1);
+
+-- ----------------------------
+-- Table structure for t_user
+-- ----------------------------
+DROP TABLE IF EXISTS `t_user`;
+CREATE TABLE `t_user`  (
+  `id` bigint NOT NULL COMMENT '手机号码，用作用户id',
+  `nickname` varchar(255) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL,
+  `password` varchar(32) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL COMMENT 'MD5(MD5(pwd明文+固定salt)+salt)',
+  `salt` varchar(10) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL,
+  `head` varchar(128) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL COMMENT '头像',
+  `register_date` datetime NULL DEFAULT NULL COMMENT '注册时间',
+  `last_login_date` datetime NULL DEFAULT NULL COMMENT '最后一次登录时间',
+  `login_count` int NULL DEFAULT 0 COMMENT '登录次数',
+  PRIMARY KEY (`id`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8 COLLATE = utf8_general_ci ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Records of t_user
+-- ----------------------------
+INSERT INTO `t_user` VALUES (18012345678, 'admin', 'b7797cce01b4b131b433b6acf4add449', '1a2b3c4d', NULL, NULL, NULL, 0);
+
+SET FOREIGN_KEY_CHECKS = 1;
+
+```
+
+11，执行查询，成功！：
+
+![image-20220402221210712](zseckill.assets/image-20220402221210712.png)
+
+12，刷新ubuntu的mysql服务，可以看到引入的表和数据：
+
+![image-20220402221337134](zseckill.assets/image-20220402221337134.png)
+
+- 我理解：
+  - 一个mysql用户可以在navicat建立一个于mysql的连接，该用户可以在mysql中建立很多数据库；
+  - ubuntu用`service mysql start`启动mysql服务后，可以允许多个用户来连接；这也体现启动的是mysqlserver，不同用户可以连接它。
+
+#### 调整后端代码-运行
+
+1，因为现在是ubuntu的mysql服务的`zhangyun 1234`用户有表，我们调整代码为该连接：
+
+![image-20220402222814947](zseckill.assets/image-20220402222814947.png)
+
+2，启动项目，访问登录；能成功来到详情页，说明代码没问题：
+
+![image-20220402222859070](zseckill.assets/image-20220402222859070.png)
+
+- 这里库存为10是因为我手动把ubuntu中的seckill数据库的secgoods表的商品数从9改成10了
+
+#### 调整后端代码--为打包进ubuntu准备
+
+1，ubuntu内部，使用的是127.0.0.1访问数据库，所以改为：
+
+![image-20220402223501051](zseckill.assets/image-20220402223501051.png)
+
+2，现在mysql放入ubuntu+程序访问ubuntu的mysql都成功了；接下来我们就要把项目打包发布到ubuntu中，并把JMeter也打包进ubuntu，最后我们会在Ubuntu环境中用JMeter去压测本zseckill项目！
+
+### Linux操作JMeter
+
+https://www.bilibili.com/video/BV1sf4y1L7KE?p=30
+

@@ -7,9 +7,11 @@ spring:
   datasource:
     # 如果用5.7版本的mysql，则name中没有cj
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://127.0.0.1:3306/seckill?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
-    username: root
-    password: 123456
+    #windows中idea访问使用它 url: jdbc:mysql://192.168.187.128:3306/seckill?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
+    # JMeter中压测使用本url
+    url: jdbc:mysql://localhost:3306/seckill?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
+    username: zhangyun
+    password: 1234
     # hikari是springboot默认自带的，号称最快的连接池。连接池是什么：https://blog.csdn.net/cbmljs/article/details/87858536
     hikari:
       # 连接池名
@@ -32,7 +34,7 @@ spring:
   # redis配置
   redis:
     # 服务器地址
-    host: 120.53.244.17
+    host: 192.168.187.128
     # 端口号
     port: 6379
     # 默认操作的数据库号
