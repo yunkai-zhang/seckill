@@ -4032,5 +4032,70 @@ SET FOREIGN_KEY_CHECKS = 1;
 
 ### Linux操作JMeter
 
+#### 把相关资料上传到ubuntu
+
+1，要先把项目打包，然后上传到linux上；打包的前提是pom中有`spring-boot-maven-plugin`（即maven）的依赖，如果没有这个插件，打包出来的东西会有问题：
+
+![image-20220403234801406](zseckill.assets/image-20220403234801406.png)
+
+2，先Maven clean：
+
+![image-20220403234027310](zseckill.assets/image-20220403234027310.png)
+
+![image-20220403234046975](zseckill.assets/image-20220403234046975.png)
+
+3，再package，就进行了打包：
+
+![image-20220403234203631](zseckill.assets/image-20220403234203631.png)
+
+- 网友：package的时候注释掉test的话，可以避免测试连接数据库
+
+![image-20220403234558508](zseckill.assets/image-20220403234558508.png)
+
+4，在项目的target目录下，找到打成得的jar包：
+
+![image-20220403235254810](zseckill.assets/image-20220403235254810.png)
+
+![image-20220403235332717](zseckill.assets/image-20220403235332717.png)
+
+5，启动本机虚拟机，xshell连接本机虚拟机，把打成的jar包传入虚拟机；把本地下载的JMeter linux版也传入ubuntu：
+
+![image-20220403235941537](zseckill.assets/image-20220403235941537.png)
+
+![image-20220404000247882](zseckill.assets/image-20220404000247882.png)
+
+#### 测试jar包在ubuntu中能否正常运行
+
+1，确保ubuntu安装了jdk，没有的自行安装一下；因为jar包和Jmeter都是需要jdk才能运行：
+
+- [参考](https://www.cnblogs.com/lighten/p/6105463.html)
+  - 他的jdk链接坏了，自己手动去oracle下载[jdk-8u321-linux-x64.tar.gz](https://www.oracle.com/java/technologies/downloads/#license-lightbox)后上传到ubuntu
+
+2，运行jar包试试：
+
+```bash
+java -jar zseckill-0.0.1-SNAPSHOT.jar 
+```
+
+![image-20220404003646875](zseckill.assets/image-20220404003646875.png)
+
+![image-20220404003609323](zseckill.assets/image-20220404003609323.png)
+
+3，测试jar包的功能；访问网页，登录，查看功能：
+
+![image-20220404003847161](zseckill.assets/image-20220404003847161.png)
+
+- ip不是localhost了，要改成ubuntu服务器的地址。
+
+能看到页面，但是秒杀详情页显示未登录：
+
+![image-20220404005010333](zseckill.assets/image-20220404005010333.png)
+
+- 网友：这里无法跳转的原因是cookie没存上，而cookie没存上的原因是CookieUtil这个类中的doSetCookie放法只对xxx.xxx.xxx和xxx.xxx进行了域名分析，没有对四个的分析。
+  - 我：但是我查看了redis数据库，登录后cookie存进去了，应该是没拿到；暂时不管了。
+
+4，
+
 https://www.bilibili.com/video/BV1sf4y1L7KE?p=30
 
+3.42
