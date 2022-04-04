@@ -3589,7 +3589,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
 ![image-20220402151127743](zseckill.assets/image-20220402151127743.png)
 
-3，在bin目录下，双击打开jmeter.bat；会弹出cmd和Jmeter软件：
+3，在bin目录下，双击打开jmeter.bat；会弹出cmd和Jmeter软件（稍等2s）：
 
 ![image-20220402151339751](zseckill.assets/image-20220402151339751.png)
 
@@ -4092,10 +4092,99 @@ java -jar zseckill-0.0.1-SNAPSHOT.jar
 ![image-20220404005010333](zseckill.assets/image-20220404005010333.png)
 
 - 网友：这里无法跳转的原因是cookie没存上，而cookie没存上的原因是CookieUtil这个类中的doSetCookie放法只对xxx.xxx.xxx和xxx.xxx进行了域名分析，没有对四个的分析。
-  - 我：但是我查看了redis数据库，登录后cookie存进去了，应该是没拿到；暂时不管了。
+  - 问问问我：但是我查看了redis数据库，登录后cookie存进去了，应该是没拿到；暂时不管了。
 
-4，
+#### ubuntu中安装+配置jmeter
 
-https://www.bilibili.com/video/BV1sf4y1L7KE?p=30
+1，保持jar的运行，新开一个窗口，把jmeter解压：
 
-3.42
+```bash
+tar zxvf apache-jmeter-5.4.3.tgz
+
+sudo mv apache-jmeter-5.4.3 /usr/local
+
+cd /usr/local
+```
+
+![image-20220404215818247](zseckill.assets/image-20220404215818247.png)
+
+![image-20220404215847693](zseckill.assets/image-20220404215847693.png)
+
+2，进入Jmeter解压目录的bin目录；之前在windows是用jmeter.bat，现在ubuntu用jmeter.sh(这个是linux下的执行脚本):
+
+![image-20220404220010652](zseckill.assets/image-20220404220010652.png)
+
+3，修改jmeter.properties；ubuntu中没有gui的图形化界面，所以只需要修改“返回结果的编码格式”：
+
+![image-20220404220743808](zseckill.assets/image-20220404220743808.png)
+
+- `:wq`保存并退出
+
+4，我们可以把windows中做的jmeter关于“HTTP请求默认值”的配置保存，拿到ubuntu中用：
+
+windows配置好的界面中，选中“HTTP请求默认值”-》点击运行-》并且保存配置
+
+![image-20220404221928367](zseckill.assets/image-20220404221928367.png)
+
+![image-20220404224505161](zseckill.assets/image-20220404224505161.png)
+
+在jmeter的bin目录下，传入保存的first.jmx文件：
+
+![image-20220404224623485](zseckill.assets/image-20220404224623485.png)
+
+- 本文件记录了1000个线程数在1s内启动（线程数不能过少，否则负载压力没效果）。
+
+  ![image-20220404230005436](zseckill.assets/image-20220404230005436.png)
+
+#### jmeter中运行压力测试
+
+1，ubuntu中运行jmeter：
+
+```
+./jmeter.sh -n -t first.jmx -l result.jtl
+```
+
+- `-n`表示非GUI的没有窗口可视化的界面下去运行
+
+- `-t`表示选择要运行的jmeter的测试脚本文件
+
+- `-l`表示指定日志文件，即记录结果的文件的文件名
+  - 后缀需为jtl，因为只有jtl文件，我们后面才能拿出来然后给到桌面的可视化工具里去看。
+
+![image-20220404225057692](zseckill.assets/image-20220404225057692.png)
+
+2，新开页面，使用top命令监控系统新能；注意看页面上部的“load average”，三个参数分别是“1min 5min 15min内的负载均衡”：
+
+初始负载低：
+
+![image-20220404224844653](zseckill.assets/image-20220404224844653.png)
+
+运行jmeter时负载略高：
+
+![image-20220404224905191](zseckill.assets/image-20220404224905191.png)
+
+
+
+10，来到记录结果的文件，下载到桌面：
+
+![image-20220404225127797](zseckill.assets/image-20220404225127797.png)
+
+![image-20220404225213494](zseckill.assets/image-20220404225213494.png)
+
+11，jmeter**清除**监听器的记录；并导入result.jtl（这个结果报告只能用聚合去看）：
+
+![image-20220404225538873](zseckill.assets/image-20220404225538873.png)
+
+![image-20220404225554937](zseckill.assets/image-20220404225554937.png)
+
+![image-20220404230756154](zseckill.assets/image-20220404230756154.png)
+
+- 可以看到吞吐量。
+- 样本==1000即启动了1000个线程。
+
+- 因为老师虚拟机只给了1核cpu+2g内存，所以吞吐量低；我给了2核cpu+4g内存，所以吞吐量更大。
+
+#### 配置同一用户测试
+
+https://www.bilibili.com/video/BV1sf4y1L7KE?p=31&spm_id_from=pageDriver
+
