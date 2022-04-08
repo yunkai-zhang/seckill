@@ -4409,5 +4409,9 @@ windows配置好的界面中，选中“HTTP请求默认值”-》点击运行-�
 
 商品列表页不同用户看到的是同一个界面，意义一般，现在来看看秒杀接口的测试。
 
+#### 编写工具类把用户放入数据库
+
+1，新增工具类UserUtil.java并编写内容：
+
 https://www.bilibili.com/video/BV1sf4y1L7KE?p=34&spm_id_from=pageDriver
 
