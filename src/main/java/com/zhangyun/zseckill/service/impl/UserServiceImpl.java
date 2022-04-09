@@ -95,7 +95,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         * */
         CookieUtil.setCookie(request, response, "userTicket", userTicket);
         //登录校验成功+在session中设置用户和cookie完成，于是可以给前端发送成功指令
-        return RespBean.success();
+        return RespBean.success(userTicket);
 
     }
 

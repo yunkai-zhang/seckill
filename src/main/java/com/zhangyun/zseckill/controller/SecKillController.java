@@ -27,7 +27,7 @@ public class SecKillController {
     @Autowired
     private OrderServiceImpl orderService;
 
-    @RequestMapping("doSeckill")
+    @RequestMapping("/doSeckill")
     public String doSeckill(Model model, User user, Long goodsId) {
         //如果用户不存在，跳往登录页面
         if (user == null) {

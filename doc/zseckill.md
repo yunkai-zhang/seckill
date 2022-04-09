@@ -4407,11 +4407,298 @@ windows配置好的界面中，选中“HTTP请求默认值”-》点击运行-�
 
 ### 正式压测-秒杀接口
 
-商品列表页不同用户看到的是同一个界面，意义一般，现在来看看秒杀接口的测试。
+#### 思路
 
-#### 编写工具类把用户放入数据库
+1，商品列表页不同用户看到的是同一个界面，意义一般，现在来看看秒杀接口的测试。
 
-1，新增工具类UserUtil.java并编写内容：
+2，我们想实现不同的用户同时去秒杀。不同的用户靠手去输入的话比较麻烦，所以我们写一个工具类，准备5000个用户，把用户放到数据库，并且让5000个用户去登录。
 
-https://www.bilibili.com/video/BV1sf4y1L7KE?p=34&spm_id_from=pageDriver
+3，登录后会生成userTicket即cookievalue，把他们全部写到config.txt中去。就通过之前学的自定义变量来通过不同的用户来做秒杀。
 
+#### 编写工具类
+
+本工具类实现：
+
+1. 把数千用户放入数据库
+2. 让数千用户登录，并把登录后得到的userTicket保存进config.txt，以备JMeter压测使用。
+
+1，utils文件夹下新增工具类UserUtil.java并编写内容：
+
+```java
+package com.zhangyun.zseckill.utils;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.zhangyun.zseckill.pojo.User;
+import com.zhangyun.zseckill.vo.RespBean;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.RandomAccessFile;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.Timestamp;
+import java.util.Date;
+
+/**
+ * 生成用户工具类
+ * @ClassName: UserUtil
+ */
+public class UserUtil {
+    private static void createUser(int count) throws Exception {
+        List<User> users = new ArrayList<>(count);
+        //生成指定数目的用户。用户的id和用户名不一样
+        for (int i = 0; i < count; i++) {
+            User user = new User();
+            user.setId(13000000000L + i);
+            user.setLoginCount(1);
+            user.setNickname("user" + i);
+            user.setRegisterDate(new Date());
+            user.setSalt("1a2b3c");
+            user.setPassword(MD5Util.inputPassToDBPass("123456", user.getSalt()));
+            users.add(user);
+        }
+        System.out.println("create user");
+        //插入数据库
+        //使用自定义的方法获取mysql连接
+        Connection conn = getConn();
+        String sql = "insert into t_user(login_count, nickname, register_date, salt, password, id)values(?,?,?,?,?,?)";
+        PreparedStatement pstmt = conn.prepareStatement(sql);
+        for (int i = 0; i < users.size(); i++) {
+            User user = users.get(i);
+            pstmt.setInt(1, user.getLoginCount());
+            pstmt.setString(2, user.getNickname());
+            pstmt.setTimestamp(3, new Timestamp(user.getRegisterDate().getTime()));
+            pstmt.setString(4, user.getSalt());
+            pstmt.setString(5, user.getPassword());
+            pstmt.setLong(6, user.getId());
+            pstmt.addBatch();
+        }
+        pstmt.executeBatch();
+        pstmt.close();
+        conn.close();
+        System.out.println("insert to db");
+
+        //登录，生成token
+        String urlString = "http://localhost:8080/login/doLogin";
+        //把（userid,userticket）写入下面的文件中；
+        File file = new File("D:\\CodeProjects\\GitHub\\zseckill\\generatedFiles\\config.txt");
+        //如果文件存在的话先删掉
+        if (file.exists()) {
+            file.delete();
+        }
+        //新建变量file指定的文件
+        RandomAccessFile raf = new RandomAccessFile(file, "rw");
+        file.createNewFile();
+        raf.seek(0);
+        for (int i = 0; i < users.size(); i++) {
+            User user = users.get(i);
+            URL url = new URL(urlString);
+            HttpURLConnection co = (HttpURLConnection) url.openConnection();
+            co.setRequestMethod("POST");
+            co.setDoOutput(true);
+            OutputStream out = co.getOutputStream();
+            //请求url接口
+            //请求需要的入参
+            String params = "mobile=" + user.getId() + "&password=" +
+                    MD5Util.inputPassToFromPass("123456");
+            out.write(params.getBytes());
+            out.flush();
+            //请求。请求完了之后有流直接读。
+            InputStream inputStream = co.getInputStream();
+            ByteArrayOutputStream bout = new ByteArrayOutputStream();
+            byte buff[] = new byte[1024];
+            int len = 0;
+            while ((len = inputStream.read(buff)) >= 0) {
+                bout.write(buff, 0, len);
+            }
+            //输入完之后，就把输入和输出流关闭
+            inputStream.close();
+            bout.close();
+            //流可以读到响应的结果
+            String response = new String(bout.toByteArray());
+            //把拿到的String类型的respbean转换成respBean对象
+            ObjectMapper mapper = new ObjectMapper();
+            RespBean respBean = mapper.readValue(response, RespBean.class);
+            //根据respBean拿到userTicket
+            String userTicket = ((String) respBean.getObj());
+            //打印谁拿到什么userticket
+            System.out.println("create userTicket : " + user.getId());
+            //一行的数据放到row中
+            String row = user.getId() + "," + userTicket;
+            raf.seek(raf.length());
+            raf.write(row.getBytes());
+            raf.write("\r\n".getBytes());//换行
+            System.out.println("write to file : " + user.getId());
+        }
+        //所有用户发起请求url后得到的userTicket写入config.txt后就完事了，可以关闭raf
+        raf.close();
+        System.out.println("over");
+    }
+    private static Connection getConn() throws Exception {
+        //这个url和下面的一些配置可以从springboot的yaml中拷贝
+        String url = "jdbc:mysql://192.168.187.128:3306/seckill?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai";
+        String username = "zhangyun";
+        String password = "1234";
+        String driver = "com.mysql.cj.jdbc.Driver";
+        Class.forName(driver);
+        return DriverManager.getConnection(url, username, password);
+    }
+    public static void main(String[] args) throws Exception {
+        createUser(5000);
+    }
+}
+
+```
+
+- 看到这理解了为什么MD5工具类中要有做两步加密的函数；就是为了方便这里生成数千个user对象，因为生成对象时需要设置存入数据库的密码，而这个密码是需要两次加密的。
+- 网友：response是就是个网页，需要是json数据
+
+2，确保虚拟机已启动（不然虚拟机中的redis和mysql都用不了）：
+
+![image-20220409222029063](zseckill.assets/image-20220409222029063.png)
+
+3，确保zseckill主题项目已启动，因为UserUtil.java中需要请求接口`http://localhost:8080/login/doLogin`
+
+![image-20220409222328496](zseckill.assets/image-20220409222328496.png)
+
+4，执行`UserUtil.java`的main方法：
+
+![image-20220409223931653](zseckill.assets/image-20220409223931653.png)
+
+- 如果插入数据时异常（我这是莫名其妙的报主键重复异常），但是插入数据成功了，这个异常会导致请求不被放入config.txt；解决方法：
+  - 插入数据的代码部分注释掉，保留填写config.txt的部分。重新执行userutil代码
+
+5，查看ubuntu中的数据库；一共有6页数据，前5页是插入的5000条用户数据，第六页是原本手动输入的两条用户数据：
+
+![image-20220409224232216](zseckill.assets/image-20220409224232216.png)
+
+![image-20220409224258296](zseckill.assets/image-20220409224258296.png)
+
+6，查看生成的config.txt文件；可以看到userTicket都是null，说明出了问题：
+
+![image-20220409224316489](zseckill.assets/image-20220409224316489.png)
+
+![image-20220409224605239](zseckill.assets/image-20220409224605239.png)
+
+7，“6”中的错误，经过排查，是因为UserUtil.java中，userTicket是通过`respBean.getObj()`得到的
+
+![image-20220409225537974](zseckill.assets/image-20220409225537974.png)
+
+但是点击LoginController.java登录`userService.doLogin`:
+
+![image-20220409225754441](zseckill.assets/image-20220409225754441.png)
+
+来到接口IUserService，再点击进IUserService的实现类UserServiceImpl：
+
+![image-20220409230120063](zseckill.assets/image-20220409230120063.png)
+
+![image-20220409230146387](zseckill.assets/image-20220409230146387.png)
+
+可以发现`return RespBean.success();`中没有把userTicket放到success中再返回，所以导致我们拿到的所有ticket都是null。
+
+- 怀疑之前ubuntu中启动系统，登录后在秒杀页还是显示用户未登录也是这个原因，即无法拿到有效的userticket。
+
+8，为了解决错误，我们把userTicket放入success，重启zseckill项目：
+
+![image-20220409231956400](zseckill.assets/image-20220409231956400.png)
+
+9，注释掉UserUtil.java中存入数据库的代码(因为数据库中已正确插入数据)，重新执行UserUtil.java的main方法：
+
+![image-20220409232219524](zseckill.assets/image-20220409232219524.png)
+
+- 不需要手动删掉之前生成的config.txt，因为UserUtill中设置了在写config.txt前如果发现文件已经存在则删掉。
+
+10，这回就看到config.txt中有userticket（即cookievalue）了：
+
+![image-20220409232336332](zseckill.assets/image-20220409232336332.png)
+
+#### windows端压测秒杀接口
+
+1，把数据库还原成最初的状态，（因为之前秒杀有修改数据）：
+
+使订单表为空：
+
+![image-20220409233516442](zseckill.assets/image-20220409233516442.png)
+
+保证秒杀商品表的库存都是10；且当前时间在秒杀时间段内：
+
+![image-20220409233552306](zseckill.assets/image-20220409233552306.png)
+
+使秒杀订单表为空：
+
+![image-20220409233810320](zseckill.assets/image-20220409233810320.png)
+
+2，回到windows中的JMeter，处理一些之前的配置：
+
+禁用掉用户列表：
+
+![image-20220409234350388](zseckill.assets/image-20220409234350388.png)
+
+线程组为5000*10：
+
+![image-20220409234558391](zseckill.assets/image-20220409234558391.png)
+
+- 老师是1000\*10是因为他机器性能不好，所以调小了；我就和前面“压测商品列表接口”的数据保持一致，就保持5000*10
+
+确认HTTP请求默认值为如下：
+
+![image-20220409234709104](zseckill.assets/image-20220409234709104.png)
+
+清除”聚合报告“：
+
+![image-20220409234741279](zseckill.assets/image-20220409234741279.png)
+
+设置”CSV数据文件设置“：
+
+![image-20220409235006111](zseckill.assets/image-20220409235006111.png)
+
+- 尤其注意”文件名“为我们idea中生成的存储了userTicket的文件。
+
+确保HTTP cookie管理器的内容：
+
+![image-20220409235139284](zseckill.assets/image-20220409235139284.png)
+
+3，Jmeter的“线程组”中新增一个http请求：
+
+![image-20220409235257739](zseckill.assets/image-20220409235257739.png)
+
+![image-20220409235834881](zseckill.assets/image-20220409235834881.png)
+
+- “路径”为“执行秒杀的接口url”
+
+- 秒杀接口的执行函数中，传入的参数除了user之外，还有goodsId。肯定得要有商品id才能秒杀。经过查看秒杀商品表，我们就定秒杀goodsId为1的商品。
+
+4，连续运行Jmeter三次：
+
+下图是连续三次运行JMeter后，的CPU图：
+
+![image-20220410000239485](zseckill.assets/image-20220410000239485.png)
+
+- 可以发现：“秒杀”的吞吐量明显比“商品列表”的吞吐量低很多，因为获取商品列表要从数据库读取数据，而秒杀要更新数据；读取数据和更新数据相比，肯定是读取数据的效率更高，吞吐量也更高。
+
+5，查看聚合报告：
+
+![image-20220410001018835](zseckill.assets/image-20220410001018835.png)
+
+记录吞吐量：
+
+```
+测试用的线程数：单次5000*循环次10*点击运行3==150000
+测试接口：/seckill/doSeckill
+优化前，windows中的qps（吞吐量）为：1283
+```
+
+6，其实QPS小无所谓，但是我们查看数据库可以发现很严重的问题：
+
+- 我的数据库竟然秒杀失败，，没显示减库存，又要排错。！！！
+
+https://www.bilibili.com/video/BV1sf4y1L7KE?p=35&spm_id_from=pageDriver
+
+6.35
