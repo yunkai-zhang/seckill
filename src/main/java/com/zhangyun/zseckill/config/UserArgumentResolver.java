@@ -36,6 +36,7 @@ public class UserArgumentResolver implements HandlerMethodArgumentResolver {
     public boolean supportsParameter(MethodParameter parameter) {
         //获取参数parameter的类型
         Class<?> parameterType = parameter.getParameterType();
+        System.out.println("UserArgumentResolver-supportsParameter 拦截到了User类");
         //看参数parameter的类型是不是User。如果返回true，说明本方法的入参是User，进而才会走到下面的resolveArgument方法
         return parameterType == User.class;
     }
@@ -50,12 +51,12 @@ public class UserArgumentResolver implements HandlerMethodArgumentResolver {
         HttpServletResponse response = webRequest.getNativeResponse(HttpServletResponse.class);
         //getCookieValue需要request，但是resolveArgument的参数里没有直接的request；不过可以从webRequest中获取request和response。这一步从request中拿到了cookievalue
         String userTicket = CookieUtil.getCookieValue(request, "userTicket");
-
+        System.out.println("UserArgumentResolver-resolveArgument 页面跳转时检验当前user是否已登录，从request中拿到的userticket（即cookievalue）为:"+userTicket);
         //ticket（即cookievalue）为空则直接返回null
         if (StringUtils.isEmpty(userTicket)) {
             return null;
         }
-        //如果ticket不为空，则可以根据ticket从redis中获取用户的数据（即返回一个user对象）
+        //如果ticket不为空，即用户已登录，则可以根据ticket从redis中获取用户的数据（即返回一个user对象）
         return iUserService.getUserByCookie(userTicket, request, response);
     }
 

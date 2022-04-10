@@ -29,8 +29,10 @@ public class SecKillController {
 
     @RequestMapping("/doSeckill")
     public String doSeckill(Model model, User user, Long goodsId) {
+        //System.out.println("!!!!!!!进入秒杀了");
         //如果用户不存在，跳往登录页面
         if (user == null) {
+            //System.out.println("!!!!!!!传入user为空");
             return "login";
         }
         //如果用户存在，传给前端，让前端能知道前端被展示的时候是否是用户已登录的状态

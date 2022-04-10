@@ -36,12 +36,13 @@ public final class CookieUtil {
     public static String getCookieValue(HttpServletRequest request, String cookieName, boolean isDecoder) {
         Cookie[] cookieList = request.getCookies();
         if (cookieList == null || cookieName == null) {
+            System.out.println("CookieUtil-getCookieValue 页面跳转时检验当前user是否已登录，发现前端发来的request中不包含cookie");
             return null;
         }
         String retValue = null;
         try {
             for (int i = 0; i < cookieList.length; i++) {
-                if (cookieList[i].getName().equals(cookieName)) {
+                if (cookieList[i].getName().equals(cookieName)) {//根据cookiename查看请求携带的每个cookie，看有没有目标cookie
                     if (isDecoder) {
                         retValue = URLDecoder.decode(cookieList[i].getValue(), "UTF-8");
                     } else {
@@ -53,6 +54,10 @@ public final class CookieUtil {
         } catch (UnsupportedEncodingException e) {
             e.printStackTrace();
         }
+        System.out.println("CookieUtil-getCookieValue 页面跳转时检验当前user是否已登录，拿到当前用户用于登录校验的的cookievalue为："+retValue);
+        /*
+        * 用户登录校验时，cookiename为userTicket，cookieValue为浏览器存储的。
+        * */
         return retValue;
     }
 
@@ -148,9 +153,10 @@ public final class CookieUtil {
                 cookie.setMaxAge(cookieMaxage);
             if (null != request) {// 设置域名的cookie
                 String domainName = getDomainName(request);
-                System.out.println(domainName);
+                System.out.println("cookieutil-doSetCookie 拿到的domainName:"+domainName);
                 if (!"localhost".equals(domainName)) {
-                    cookie.setDomain(domainName);
+                    System.out.println("cookieutil-doSetCookie 自己设置了domainname:"+domainName);
+                    cookie.setDomain(domainName);//ubuntu的话，拿到的是虚拟机的地址（如http://192.168.187.128/），就会进入这个方法设置域名
                 }
             }
             cookie.setPath("/");
@@ -198,6 +204,7 @@ public final class CookieUtil {
         String domainName = null;
         // 通过request对象获取访问的url地址
         String serverName = request.getRequestURL().toString();
+        System.out.println("cookieutil-getdomainname 得到的初始serverName:"+serverName);
         if (serverName == null || serverName.equals("")) {
             domainName = "";
         } else {
@@ -206,6 +213,7 @@ public final class CookieUtil {
             // 如果url地址是以http://开头  将http://截取
             if (serverName.startsWith("http://")) {
                 serverName = serverName.substring(7);
+                System.out.println("cookieutil-getdomainname 被截取7位后的serverName:"+serverName);
             }
             int end = serverName.length();
             // 判断url地址是否包含"/"
@@ -219,6 +227,7 @@ public final class CookieUtil {
             // 根据"."进行分割
             final String[] domains = serverName.split("\\.");
             int len = domains.length;
+            System.out.println("cookieutil-getdomainname 尝试根据”.“截取servername后得到的字符串数组:"+domains+" 长度为："+len);
             if (len > 3) {
                 // www.xxx.com.cn
                 domainName = domains[len - 3] + "." + domains[len - 2] + "." + domains[len - 1];
@@ -228,11 +237,13 @@ public final class CookieUtil {
             } else {
                 domainName = serverName;
             }
+            System.out.println("cookieutil-getdomainname 尝试根据”.“截取servername后得到的servername:"+serverName);
         }
 
         if (domainName != null && domainName.indexOf(":") > 0) {
             String[] ary = domainName.split("\\:");
             domainName = ary[0];
+            System.out.println("cookieutil-getdomainname 尝试去掉serverName中的“:”后得到的servername:"+serverName);
         }
         return domainName;
     }

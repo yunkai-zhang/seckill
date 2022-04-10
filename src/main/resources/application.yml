@@ -9,7 +9,7 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     #windows中idea访问使用它
     url: jdbc:mysql://192.168.187.128:3306/seckill?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
-    # JMeter中压测使用本url
+    # JMeter在ubuntu中压测使用本url
     #url: jdbc:mysql://localhost:3306/seckill?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
     username: zhangyun
     password: 1234
@@ -34,8 +34,10 @@ spring:
 
   # redis配置
   redis:
-    # 服务器地址
+    # 服务器地址(windows段时)。
     host: 192.168.187.128
+    # 服务器地址(ubuntu段时)。在ubuntu中运行项目但是用错redis host地址的话，会导致服务器无法识别请求中带来的cookie。
+    #host: 127.0.0.1
     # 端口号
     port: 6379
     # 默认操作的数据库号

@@ -4619,7 +4619,7 @@ public class UserUtil {
 
 ![image-20220409232336332](zseckill.assets/image-20220409232336332.png)
 
-#### windows端压测秒杀接口
+#### windows端压测
 
 1，把数据库还原成最初的状态，（因为之前秒杀有修改数据）：
 
@@ -4655,15 +4655,18 @@ public class UserUtil {
 
 ![image-20220409234741279](zseckill.assets/image-20220409234741279.png)
 
-设置”CSV数据文件设置“：
+设置”CSV数据文件设置“，并保证”CSV数据文件设置“在**启用**状态：
 
 ![image-20220409235006111](zseckill.assets/image-20220409235006111.png)
 
 - 尤其注意”文件名“为我们idea中生成的存储了userTicket的文件。
+- 一定要启用CSV数据文件设置，不然做秒杀的后端接口，拿不到cookie！！
 
-确保HTTP cookie管理器的内容：
+确保HTTP cookie管理器的内容；并保证“HTTP cookie管理器”在**启用**状态：
 
 ![image-20220409235139284](zseckill.assets/image-20220409235139284.png)
+
+- 一定要启用“HTTP cookie管理器”，不然做秒杀的后端接口，拿不到cookie！！
 
 3，Jmeter的“线程组”中新增一个http请求：
 
@@ -4687,18 +4690,130 @@ public class UserUtil {
 
 ![image-20220410001018835](zseckill.assets/image-20220410001018835.png)
 
+- 这个吞吐量先不计，因为“6”中有bug要处理。
+
+- 其实QPS小无所谓，但是我们查看数据库可以发现很严重的问题：超卖！
+
+6，查看数据库内容，发现秒杀完后没有减少库存：
+
+![image-20220410193148017](zseckill.assets/image-20220410193148017.png)
+
+说明程序出现了问题，来debug一下。因为JMeter和控制台都没报错，怀疑是程序正常步骤导致没有处理数据库，先debug最开始的user==null判断语句！
+
+在项目的“doSeckill”函数中，添加打印；重新执行JMeter秒杀接口测试：
+
+![image-20220410193345060](zseckill.assets/image-20220410193345060.png)
+
+- 可以看到果然，JMeter的每个请求，都因为user==null而退出。思考：为什么这里拿不到user？user在传入前，会被UserArgumentResolver.java拦截，现在debugUserArgumentResolver。
+
+先把上一步的doSeckill函数中的两个打印取消掉，防止控制台输出过多；再在debugUserArgumentResolver中打断点观察，以debug模式运行zseckill项目；再次执行JMeter测试：
+
+![image-20220410194554338](zseckill.assets/image-20220410194554338.png)
+
+![image-20220410195110337](zseckill.assets/image-20220410195110337.png)
+
+- 可以看到CookieUtil.getCookieValue没能成功拿到userTicket（即cookiename）对应的cookieValue，原因应该是request中本身就没携带cookie.
+
+检查JMeter，发现是因为之前JMeter没有启动CSV和Http Cookie导致request中没有携带生成好的cookie！；现在启用两者：
+
+![image-20220410215659163](zseckill.assets/image-20220410215659163.png)
+
+- 之前步骤已同步纠正。
+
+7，重新运行zseckill项目，清空JMeter聚合报告，重新运行JMeter三次：
+
+![image-20220410220638446](zseckill.assets/image-20220410220638446.png)
+
 记录吞吐量：
 
 ```
 测试用的线程数：单次5000*循环次10*点击运行3==150000
 测试接口：/seckill/doSeckill
-优化前，windows中的qps（吞吐量）为：1283
+优化前，windows中的qps（吞吐量）为：2141
 ```
 
-6，其实QPS小无所谓，但是我们查看数据库可以发现很严重的问题：
+8，查看数据库，发现了超卖现象！
 
-- 我的数据库竟然秒杀失败，，没显示减库存，又要排错。！！！
+![image-20220410220857068](zseckill.assets/image-20220410220857068.png)
+
+- 秒杀商品表数目减少12变成了-2.
+
+同时订单表数目==秒杀订单表数目>>秒杀商品表库存减少的数量
+
+![image-20220410221130681](zseckill.assets/image-20220410221130681.png)
+
+![image-20220410221208121](zseckill.assets/image-20220410221208121.png)
+
+9，超卖，先不管，继续在ubuntu下测试秒杀接口
+
+#### ubuntu端压测前半段
+
+1，把数据库还原为未秒杀过的初始状态。
+
+2，因为之前修改了`RespBean.success()`，所以重新打包；打包的时候确保yml中，mysql和redis的host都是ubuntu中使用的host地址：
+
+![image-20220410224039562](zseckill.assets/image-20220410224039562.png)
+
+3，把打包成的jar包重新传到ubuntu中，覆盖之前的jar包：
+
+![image-20220410224420823](zseckill.assets/image-20220410224420823.png)
+
+4，把存储了userticket（即cookievalue）的config.txt上传到ubuntu：
+
+![image-20220410231023646](zseckill.assets/image-20220410231023646.png)
+
+5，把秒杀用的jmeter策略另存为“miaosha.jmx”，并把策略上传到ubuntu：
+
+![image-20220410225121186](zseckill.assets/image-20220410225121186.png)
+
+6，修改miaosha.jmx使之适配ubuntu环境：
+
+![image-20220410231501651](zseckill.assets/image-20220410231501651.png)
+
+6，ubuntu中启动zseckill jar包；测试功能，还是会出现在秒杀页展现“未登录”的字样：
+
+#### debug大战
+
+1，必须解决，不然后续JMeter测试可能出问题
+
+![image-20220410230704070](zseckill.assets/image-20220410230704070.png)
+
+![image-20220410233124541](zseckill.assets/image-20220410233124541.png)
+
+2，在程序中添加输出，打印发现还是因为cookievalue没拿到：
+
+![image-20220410233848762](zseckill.assets/image-20220410233848762.png)
+
+- 很奇怪，为什么windows下没有这个问题，但是ubuntu下有，怀疑是cookieUtil的问题
+
+3，给`CookieUtil UserServiceImpl UserArgumentResolver`中加入大量sout，重新打包并上传到ubuntu，登录并来到秒杀页，打印如下：
+
+![image-20220411005138191](zseckill.assets/image-20220411005138191.png)
+
+- 原因是前端请求的时候始终没带上cookie；登陆成功时cookie会给前端，前端收到登录成功信号后请求“/goods/toList”时应该带上cookie的。
+
+4，问问问
+
+#### ubuntu端压测后半段
+
+7，xshell来到JMeter测试策略所在的位置，在ubuntu中执行JMeter测试三次：
+
+```
+/usr/local/apache-jmeter-5.4.3/bin/jmeter -n -t miaosha.jmx -l result.jtl
+```
+
+执行测试前的系统数据：
+
+![image-20220410230026681](zseckill.assets/image-20220410230026681.png)
+
+执行完三次后的瞬间，负载狂飙：
+
+
+
+8，查看测试结果：
 
 https://www.bilibili.com/video/BV1sf4y1L7KE?p=35&spm_id_from=pageDriver
 
-6.35
+14.08
+
+先把bug de了吧。

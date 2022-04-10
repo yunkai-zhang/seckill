@@ -85,6 +85,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         String userTicket = UUIDUtil.uuid();
         //将用户信息存入redis；opsForValue专门用于操作String类型
         redisTemplate.opsForValue().set("user:"+userTicket,user);
+        System.out.println("UserServiceImpl-doLogin 往redis中存入的键(user+cookievalue)值(user的json形式)对："+"user:"+userTicket+":当前的user的json");
 
         //将用户信息+用户cookie存到session中，就得用到request和response（存cookie用到response）
         //request.getSession().setAttribute(userTicket,user);之前把用户信息放在session中，现在我们把用户信息放到redis中：
@@ -94,6 +95,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         * 使用redis存储用户信息时，cookie用法不变
         * */
         CookieUtil.setCookie(request, response, "userTicket", userTicket);
+        System.out.println("UserServiceImpl-doLogin 登录成功，往相应中存入cookie给浏览器，cookie为："+userTicket);
         //登录校验成功+在session中设置用户和cookie完成，于是可以给前端发送成功指令
         return RespBean.success(userTicket);
 
