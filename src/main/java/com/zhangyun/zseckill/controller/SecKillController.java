@@ -42,6 +42,7 @@ public class SecKillController {
         if (goods.getStockCount() < 1) {
             //前端收到后端传递来的“错误信息”，会做前端自己的处理。
             model.addAttribute("errmsg", RespBeanEnum.EMPTY_STOCK.getMessage());
+            System.out.println("SecKillController-doSeckill 库存不足，跳往:seckillFail");
             return "seckillFail";
         }
         /*

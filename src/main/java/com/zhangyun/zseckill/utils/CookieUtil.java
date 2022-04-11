@@ -230,20 +230,23 @@ public final class CookieUtil {
             System.out.println("cookieutil-getdomainname 尝试根据”.“截取servername后得到的字符串数组:"+domains+" 长度为："+len);
             if (len > 3) {
                 // www.xxx.com.cn
-                domainName = domains[len - 3] + "." + domains[len - 2] + "." + domains[len - 1];
+                /**
+                 * domains[len - 4]是zyk新加的，不然ubuntu中发送的request中的serrvername：192.168.187.128会被处理成168.187.128
+                 * */
+                domainName = domains[len - 4]+"."+domains[len - 3] + "." + domains[len - 2] + "." + domains[len - 1];
             } else if (len <= 3 && len > 1) {
                 // xxx.com or xxx.cn
                 domainName = domains[len - 2] + "." + domains[len - 1];
             } else {
                 domainName = serverName;
             }
-            System.out.println("cookieutil-getdomainname 尝试根据”.“截取servername后得到的servername:"+serverName);
+            System.out.println("cookieutil-getdomainname 尝试根据”.“截取servername并处理后得到的domainName:"+domainName);
         }
 
         if (domainName != null && domainName.indexOf(":") > 0) {
             String[] ary = domainName.split("\\:");
             domainName = ary[0];
-            System.out.println("cookieutil-getdomainname 尝试去掉serverName中的“:”后得到的servername:"+serverName);
+            System.out.println("cookieutil-getdomainname 尝试去掉domainName中的“:”后得到的domainName:"+domainName);
         }
         return domainName;
     }

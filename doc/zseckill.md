@@ -4768,11 +4768,13 @@ public class UserUtil {
 
 6，修改miaosha.jmx使之适配ubuntu环境：
 
-![image-20220410231501651](zseckill.assets/image-20220410231501651.png)
+![image-20220412003807127](zseckill.assets/image-20220412003807127.png)
 
-6，ubuntu中启动zseckill jar包；测试功能，还是会出现在秒杀页展现“未登录”的字样：
+- 这里注意result不要写成result1。
 
-#### debug大战
+7，ubuntu中启动zseckill jar包；测试功能，还是会出现在秒杀页展现“未登录”的字样：
+
+#### debug cookie
 
 1，必须解决，不然后续JMeter测试可能出问题
 
@@ -4788,15 +4790,94 @@ public class UserUtil {
 
 3，给`CookieUtil UserServiceImpl UserArgumentResolver`中加入大量sout，重新打包并上传到ubuntu，登录并来到秒杀页，打印如下：
 
-![image-20220411005138191](zseckill.assets/image-20220411005138191.png)
+![image-20220411230353862](zseckill.assets/image-20220411230353862.png)
 
 - 原因是前端请求的时候始终没带上cookie；登陆成功时cookie会给前端，前端收到登录成功信号后请求“/goods/toList”时应该带上cookie的。
+- 并且doSetCookie拿到的domainname和getdomainname返回的不一致。
 
-4，问问问
+4，怀疑是因为domainname192被删掉，导致cookie往resp中设置失败。所以浏览器请求的时候才没鞋带cookie。可以浏览器前端f12看一下cookie：
+
+![image-20220411225934984](zseckill.assets/image-20220411225934984.png)
+
+- 登录成功，前端发送toList请求到后端的时候，确实没有携带cookie，应该是本身就没收到cookie。
+
+5，查看domainname丢失的地方：
+
+![image-20220411230454139](zseckill.assets/image-20220411230454139.png)
+
+- 代码想把`www.xxx.com.cn`格式的域名处理成`xxx.com.cn`，但是误伤了我非域名格式的“192.168.187.128”ip。
+
+6，本项目就简单处理，直接让`192.`不被删除：
+
+![image-20220411231216467](zseckill.assets/image-20220411231216467.png)
+
+7，重新打包zseckill项目，发送到ubuntu运行；登录：
+
+![image-20220411231427104](zseckill.assets/image-20220411231427104.png)
+
+- 这次登录后，前端往后端发送“toList”请求的时候，携带了cookie（说明后端判定登录成功的时候，成功给前端发送了cookie），且前端收到的相应中有后端发回的cookie。
+
+8，点击“详情”，这回秒杀页没有提示“用户未登录”了，debug成功！：
+
+![image-20220411231911018](zseckill.assets/image-20220411231911018.png)
+
+#### debug thymeleaf
+
+1，执行JMeter测试后，疯狂报错；提示是库存不足后跳往zseckillFail页面时，无法解析zseckillFail页面：
+
+![image-20220411232936688](zseckill.assets/image-20220411232936688.png)
+
+```
+2022-04-11 08:49:58.999 ERROR 129034 --- [nio-8080-exec-7] o.a.c.c.C.[.[.[/].[dispatcherServlet]    : Servlet.service() for servlet [dispatcherServlet] in context with path [] threw exception [Request processing failed; nested exception is org.thymeleaf.exceptions.TemplateInputException: Error resolving template [seckillFail], template might not exist or might not be accessible by any of the configured Template Resolvers] with root cause
+
+org.thymeleaf.exceptions.TemplateInputException: Error resolving template [seckillFail], template might not exist or might not be accessible by any of the configured Template Resolvers
+	at org.thymeleaf.engine.TemplateManager.resolveTemplate(TemplateManager.java:869) ~[thymeleaf-3.0.15.RELEASE.jar!/:3.0.15.RELEASE]
+
+```
+
+2，我在库存不足的情况下，在windows段尝试秒杀，它成功跳到了secKillFail.html：
+
+![image-20220411235543885](zseckill.assets/image-20220411235543885.png)
+
+- 所以又是windows能行，但是ubuntu不行。
+
+3，百度和bing搜“template might not exist or might not be accessible by any of the configured”搜索了一圈，没有用；用google搜到了一个[帖子](https://www.yawintutor.com/error-1564-error-resolving-template/)，帖子说：`occurs when the template files are not available in src/main/resources/templates folder or the file name is incorrect. `。瞬间想到，是不是html文件命名错误？
+
+报错说找不到“seckillFail”，到项目一看，果然文件名不一致：
+
+![image-20220412001233597](zseckill.assets/image-20220412001233597.png)
+
+![image-20220412001108008](zseckill.assets/image-20220412001108008.png)
+
+4，我很奇怪为什么windows段没报错，会不会是windows段定位到别的名叫“seckillFail”的文件，导致找到了文件？我就修改了代码做标记：
+
+![image-20220412001400716](zseckill.assets/image-20220412001400716.png)
+
+![image-20220412001419658](zseckill.assets/image-20220412001419658.png)
+
+重新运行windows端的项目，竟然体现了更新：
+
+![image-20220412001504861](zseckill.assets/image-20220412001504861.png)
+
+![image-20220412001522636](zseckill.assets/image-20220412001522636.png)
+
+5，得出结论：windows端在找不到thymeleaf的html时，会智能识别名字相近的thymeleaf html文件；但是ubuntu段就严格要求文件名得写对。原因尚未知。
+
+6，修改html名字为“seckillFail”：
+
+![image-20220412001847479](zseckill.assets/image-20220412001847479.png)
+
+7，重新修改yml配置为ubuntu中的配置，打包项目，上传项目到ubuntu，登录并执行秒杀；这回成功跳到秒杀失败页面了：
+
+![image-20220412002207888](zseckill.assets/image-20220412002207888.png)
+
+![image-20220412002228966](zseckill.assets/image-20220412002228966.png)
+
+8，现在恢复数据库数据到秒杀前，准备真正的测试。
 
 #### ubuntu端压测后半段
 
-7，xshell来到JMeter测试策略所在的位置，在ubuntu中执行JMeter测试三次：
+8，xshell来到JMeter测试策略所在的位置，在ubuntu中执行JMeter测试三次：
 
 ```
 /usr/local/apache-jmeter-5.4.3/bin/jmeter -n -t miaosha.jmx -l result.jtl
@@ -4808,12 +4889,34 @@ public class UserUtil {
 
 执行完三次后的瞬间，负载狂飙：
 
+![image-20220412004443712](zseckill.assets/image-20220412004443712.png)
 
+9，把存着ubuntu段压测结果的“result.jtl”下载到window：
 
-8，查看测试结果：
+![image-20220412004816450](zseckill.assets/image-20220412004816450.png)
 
-https://www.bilibili.com/video/BV1sf4y1L7KE?p=35&spm_id_from=pageDriver
+10，window段打开“result.jtl”查看结果：
 
-14.08
+![image-20220412005702611](zseckill.assets/image-20220412005702611.png)
 
-先把bug de了吧。
+- 我：看到异常不为空，先不管。
+
+记录吞吐量：
+
+```
+测试用的线程数：单次5000*循环次10*点击运行3==150000
+测试接口：/seckill/doSeckill
+优化前，windows中的qps（吞吐量）为：1283
+```
+
+11，数据库中，在windows中做JMeter测试一样，出现了超卖，并且订单数和库存减少数目不一致。这是很不对的！问题：
+
+- 超卖
+- 之前没有设置结束时间，到秒杀结束后，虽然按钮不能点了，但是直接通过url来秒杀的话还是能在秒杀时间段结束后继续秒杀。
+
+12，后面会一步步优化项目。
+
+### 系统压测总结
+
+https://www.bilibili.com/video/BV1sf4y1L7KE?p=36&spm_id_from=pageDriver
+
