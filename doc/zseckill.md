@@ -4918,5 +4918,184 @@ org.thymeleaf.exceptions.TemplateInputException: Error resolving template [secki
 
 ### 系统压测总结
 
-https://www.bilibili.com/video/BV1sf4y1L7KE?p=36&spm_id_from=pageDriver
+略
+
+### 说在优化前
+
+1，添加缓存是可以在各种场景应用的优化
+
+2，做缓存的原因：
+
+- QPS的最大瓶颈就是数据库的操作，我们完全可以把数据库的操作提取出来放到缓存。
+- 当然把数据库操作放到缓存是有前提条件的，不是任何数据库操作都能放到缓存；我们一般做缓存都是那种，“经常被读取，但是变更比较少的数据”才会做缓存。因为放了缓存还要考虑缓存和数据库一致性的问题，牵扯到很多东西，就不展开了。
+
+3，优化点：
+
+1. 页面缓存（重点）：
+
+   - 现在用的是thymeleaf模板，当要请求的时候，需要在服务器端把整个数据全部放到浏览器去展示，这个数据传输量是比较大的，而且还需要进行数据库查询等等；所以我们完全可以把它放到页面中做缓存，也就是放到redis中做缓存。
+
+   - 除了页面缓存还有“URL缓存，对象缓存”，区别就是粒度的粗细，这个后面会讲到。
+
+2. 页面静态化（重点）：
+
+   - 页面静态化 即 前后端分离
+   - 做页面静态化的原因：现在是thymeleaf模板，每次浏览器请求的时候，都要从浏览器端获取到数据，拼接成模板，渲染模板并把模板返回给浏览器；即使服务器加了缓存，但是服务器到浏览器中间传输的时候传输的还是一整个模板引擎；所以最后肯定得做页面静态化，即前端就是html，然后html中的一些动态的数据才会真正的通过服务器发给前端；而前端中一些基本不会变更的页面就是静态的。
+
+   - 流行前后端分离后，前端出现了很多框架，比如vue react，所以第二个优化的操作就是做页面静态化
+
+3. 静态资源的优化（不详细展开）：
+
+   - 比如把静态资源如css js 图片等提前放在另外的地方，并做相应的处理
+
+4. CDN优化（不详细展开）
+
+4，由于windows的硬件性能好，压测结果的qps高，后续优化的话结果应该会更明显；所以后续就只在windows压测，不去linux了。
+
+- 我：老师变卦了，之前还信誓旦旦说要在linux真实模拟服务环境的。
+
+## 页面优化
+
+### 页面缓存
+
+#### 思路
+
+1，所谓页面缓存，就是我们现在后端处理完不直接跳转到前端页面了，而是后端直接返回一个页面，并且把这个页面放到redis缓存中；
+
+#### 缓存商品列表页
+
+1，来到GoodController-toList，之前是单纯做页面跳转：
+
+![image-20220412210540186](zseckill.assets/image-20220412210540186.png)
+
+2，思考，把商品列表页作为页面缓存起来需要哪些操作？
+
+1. Controller层处理请求需要引入redis
+2. 从redis中读取缓存
+3. 读取后发现有页面的话，直接发回给浏览器
+4. 如果缓存中没有页面的话，就得手动的渲染模板；之所以”手动“，是因为我们现在通过thymeleaf，所以要手动渲染thymeleaf模板，而不是通过spring框架去渲染。
+5. 手动渲染thymeleaf模板后，要把它存入redis缓存中，并且把结果输出到浏览器端
+
+3，现在让他返回一个完整的页面，并且这个页面是缓存起来的，修改如下：
+
+```java
+    @Autowired
+    private RedisTemplate redisTemplate;
+    //用于手动渲染。不详细展开了
+    @Autowired
+    private ThymeleafViewResolver thymeleafViewResolver;
+
+    /**
+     * 跳转到商品列表页
+     *
+     * produce表示这个页面是缓存起来的；且最好在produce中设置一下编码格式，省的返回的时候编码格式有问题导致乱码。
+     * */
+    @RequestMapping(value="/toList",produces = "text/html;charset=utf-8")
+    //使用@ResponseBody后,return的值就不会被解析成静态页面的文件名，而是会return一个对象。
+    @ResponseBody
+    public String toList(Model model, User user,HttpServletRequest request,HttpServletResponse response){
+        //通过valueOperations去处理
+        ValueOperations valueOperations = redisTemplate.opsForValue();
+        //key可以自己定义。可以直接把拿到的强转成Stirng类型返回，因为我们自己知道我们存的就是String类型，因为存的html页面显然是String类型
+        String html = (String) valueOperations.get("goodsList");
+        //对从redis中拿到的html做判断
+        if(!StringUtils.isEmpty(html)){//如果不为空直接返回html
+            return html;
+        }
+
+        //把用户信息传入到前端
+        model.addAttribute("user",user);
+        //把商品信息传入前端
+        model.addAttribute("goodsList", goodsService.findGoodsVo());
+
+        /*
+         * 如果redis之前没有存储目标页面，就要手动渲染，并且存入redis，并且返回。thymeleaf有对应的模板引擎叫做thymeleafViewResolver 可以用于手动渲染
+         * process()用于渲染,参数为(模板名称,webcontext)
+         * 构建webcontext也需要入参，req和resp的问题不大，可以直接从前端获取
+         * webcontext也需要传入到底网页的内容是什么，所以把model传入，因为model中有user和goodsList的信息，可以用于构建html；所以webContext要在model.addAttribute后处理
+         * */
+        WebContext webContext=new WebContext(request,response,request.getServletContext(),request.getLocale(),model.asMap());
+        html=thymeleafViewResolver.getTemplateEngine().process("goodsList",webContext);
+        //对渲染结果做判断,渲染成功了则存到redis中，并返回。要设置kv的存在时间，避免让用户看到很久之前的页面，推荐设置为1min
+        if(!StringUtils.isEmpty(html)){
+            valueOperations.set("goodsList",html,1, TimeUnit.MINUTES);//goodsList是自定义的redis key，对应的value是html。
+        }
+        return html;
+    }
+```
+
+- toList是当前用的方法，toList[数字]是历史上使用的方法，数字越小代表方法越早，比如toList2就是最早的方法。
+- 我理解+注意：方法上要加@ResponseBody，这样return的东西会被当做对象处理，而不会被当要跳往的静态页面的名字。现在相当于不用再后端指定浏览器跳转页面了，而是后端直接给浏览器返回了一个页面让浏览器展示。
+- **我理解**：webcontext中有渲染页面所需要的所有非html内容；html骨架在goodsList.html中，通过process的第一个参数给thymeleaf渲染。
+  - 渲染时，goodsList.html是必须的，不然光有页面变量的数据，没有骨架。
+
+4，`flushall`清空redis数据库：
+
+```bash
+zyk@ubuntu:/usr/local/redis$ pwd
+/usr/local/redis
+zyk@ubuntu:/usr/local/redis$ redis-cli
+127.0.0.1:6379> ping
+PONG
+127.0.0.1:6379> flushall
+OK
+127.0.0.1:6379> keys *
+(empty list or set)
+127.0.0.1:6379> 
+```
+
+5，启动zseckill项目，登录；登录成功后查看redis数据库，可以看到手动渲染并存入redis的html页面：
+
+```bash
+127.0.0.1:6379> keys *
+(empty list or set)
+127.0.0.1:6379> keys *
+1) "user:82bc55c287c34374a262aba76e360b26"
+2) "goodsList"
+127.0.0.1:6379> get goodsList
+"\"<!DOCTYPE html>\\r\\n<html lang=\\\"en\\\">\\r\\n<head>\\r\\n    <meta charset=\\\"UTF-8\\\">\\r\\n    <title>\xe5\x95\x86\xe5\x93\x81\xe5\x88\x97\xe8\xa1\xa8</title>\\r\\n    <!-- jquery -->\\r\\n    <script type=\\\"text/javascript\\\" src=\\\"/js/jquery.min.js\\\"></script>\\r\\n    <!-- bootstrap -->\\r\\n    <link rel=\\\"stylesheet\\\" type=\\\"text/css\\\" href=\\\"/bootstrap/css/bootstrap.min.css\\\"/>\\r\\n    <script type=\\\"text/javascript\\\" src=\\\"/bootstrap/js/bootstrap.min.js\\\"></script>\\r\\n    <!-- layer -->\\r\\n    <script type=\\\"text/javascript\\\" src=\\\"/layer/layer.js\\\"></script>\\r\\n    <!-- common.js -->\\r\\n    <script type=\\\"text/javascript\\\" src=\\\"/js/common.js\\\"></script>\\r\\n</head>\\r\\n<body>\\r\\n<div class=\\\"panel panel-default\\\">\\r\\n    <div class=\\\"panel-heading\\\">\xe7\xa7\x92\xe6\x9d\x80\xe5\x95\x86\xe5\x93\x81\xe5\x88\x97\xe8\xa1\xa8</div>\\r\\n    <table class=\\\"table\\\" id=\\\"goodslist\\\">\\r\\n        <tr>\\r\\n            <td>\xe5\x95\x86\xe5\x93\x81\xe5\x90\x8d\xe7\xa7\xb0</td>\\r\\n            <td>\xe5\x95\x86\xe5\x93\x81\xe5\x9b\xbe\xe7\x89\x87</td>\\r\\n            <td>\xe5\x95\x86\xe5\x93\x81\xe5\x8e\x9f\xe4\xbb\xb7</td>\\r\\n            <td>\xe7\xa7\x92\xe6\x9d\x80\xe4\xbb\xb7</td>\\r\\n            <td>\xe5\xba\x93\xe5\xad\x98\xe6\x95\xb0\xe9\x87\x8f</td>\\r\\n            <td>\xe8\xaf\xa6\xe6\x83\x85</td>\\r\\n        </tr>\\r\\n        <tr>\\r\\n            <td>IPHONE12</td>\\r\\n            <td><img src=\\\"/img/iphone12.png\\\" width=\\\"100\\\" height=\\\"100\\\"/></td>\\r\\n            <td>6299.00</td>\\r\\n            <td>629.00</td>\\r\\n            <td>10</td>\\r\\n            <td><a href=\\\"/goods/toDetail/1\\\">\xe8\xaf\xa6\xe6\x83\x85</a></td>\\r\\n        </tr>\\r\\n        <tr>\\r\\n            <td>IPHONE12 PR0</td>\\r\\n            <td><img src=\\\"/img/iphone12pro.png\\\" width=\\\"100\\\" height=\\\"100\\\"/></td>\\r\\n            <td>9299.00</td>\\r\\n            <td>929.00</td>\\r\\n            <td>10</td>\\r\\n            <td><a href=\\\"/goods/toDetail/2\\\">\xe8\xaf\xa6\xe6\x83\x85</a></td>\\r\\n        </tr>\\r\\n    </table>\\r\\n</div>\\r\\n</body>\\r\\n</html>\""
+127.0.0.1:6379> 
+```
+
+#### url缓存
+
+1，叫url缓存其实不是很准确，它本质上还是页面缓存；之所以又叫url缓存，是因为goodsId不一样，进到的详情页面是不一样的。所以我们所谓的url缓存，其实就是把id不一样的页面同样也做缓存的处理：
+
+![image-20220413002304070](zseckill.assets/image-20220413002304070.png)
+
+2，同样重新编写toDetail函数，用截图展示更知道变化在哪：
+
+![image-20220413004623876](zseckill.assets/image-20220413004623876.png)
+
+![image-20220413004705585](zseckill.assets/image-20220413004705585.png)
+
+3，清空redis：
+
+![image-20220413004746309](zseckill.assets/image-20220413004746309.png)
+
+4，尝试登录后来到列表页，并来到两件商品的秒杀页；页面都成功到达了：
+
+![image-20220413004836282](zseckill.assets/image-20220413004836282.png)
+
+![image-20220413004845238](zseckill.assets/image-20220413004845238.png)
+
+![image-20220413005445102](zseckill.assets/image-20220413005445102.png)
+
+5，查看redis，有刚存入的页面缓存，注意key区分了不同的url参数对应的页面：
+
+![image-20220413005643675](zseckill.assets/image-20220413005643675.png)
+
+6，过1min后再查看redis，缓存的页面没了，对应了我们在后端为缓存页面设置的1min的存活时间：
+
+![image-20220413005927189](zseckill.assets/image-20220413005927189.png)
+
+7，虽然把它放在redis中做了缓存，加快了构建前端页面的速度（构建一次后，1min中都可以直接从缓存中拿，节约了大量性能），但是我们从后端处理完后发送给前端，仍然要发送整个页面，这个传输量很大，所以我们后面会做前后端分离。当然前后端分离之前会先讲对象缓存。
+
+### 对象缓存
+
+https://www.bilibili.com/video/BV1sf4y1L7KE?p=38&spm_id_from=pageDriver
+
+## 服务优化
+
+## 安全优化
 
