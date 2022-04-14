@@ -5093,7 +5093,106 @@ OK
 
 ### 对象缓存
 
-https://www.bilibili.com/video/BV1sf4y1L7KE?p=38&spm_id_from=pageDriver
+1，应用场景有很大局限：
+
+- 页面缓存的应用场景：不怎么会变更的页面，如列表页 详情页
+- 商品列表有对应分页，如果分100页，缓存100页是不合理的；一般就会缓存前面几页，因为大部分用户也就点前面几页。
+
+2，什么是对象缓存
+
+![image-20220414191850426](zseckill.assets/image-20220414191850426.png)
+
+- 对象缓存是更加细粒度的缓存，针对对象进行相应的缓存
+- 之前为了避免分布式不一致，即做分布式session的时候，已经把user存入redis了，相当于就是实现了对象缓存；缓存的是user这个对象，更细粒度的。
+- 有一个问题：这个用户我们一般不会修改，所以没有设置失效时间。但是如果用户做了变更的时候，我们应该怎么处理？
+
+3，在IUserService.java写一个新的功能，让用户能更新自己的密码：
+
+![image-20220414195718542](zseckill.assets/image-20220414195718542.png)
+
+- 其实“更新密码”这个功能是基本用不上的，写这个功能就是为了强调： 
+  - 现在用户是一直存在redis中并用不失效的，如果这个时候用户user的信息做了变更，如果redis还不做处理的话，那么系统从redis中拿到的就一直是旧的user，会发生数据不一致的问题。
+  - 为了保证redis中的数据，和数据库中的数据一样，所以要写本“更新密码”的功能来实现。
+  - 最简单的方式实现数据库和redis一致：每次对数据库操作的时候，把对应的redis数据删除；删除redis对应数据后，因为数据库中有最新的数据且redis中没有对应数据，后面再需要调用redis的时候（比如登录）就会从数据库中获取到最新的用户信息。
+
+4，在UserServiceImpl.java中实现updatePassword方法：
+
+```java
+    /**
+     * 更新密码
+     * */
+    @Override
+    public RespBean updatePassword(String userTicket, String password,HttpServletRequest request,HttpServletResponse response) {
+        //先根据cookievalue从redis中拿到user对象
+        User user = getUserByCookie(userTicket, request, response);
+
+        //如果从redis中没有获取到用户，抛出异常
+        if (user == null) {
+            throw new GlobalException(RespBeanEnum.MOBILE_NOT_EXIST);
+        }
+
+        //将输入密码直接进行两次加密，并存入user
+        user.setPassword(MD5Util.inputPassToDBPass(password, user.getSalt()));
+        //更新数据库中当前user的密码
+        int result = userMapper.updateById(user);
+        //如果数据库更新成功的话
+        if (1 == result) {
+            //删除Redis中的本user对象
+            redisTemplate.delete("user:" + userTicket);
+            //返回成功
+            return RespBean.success();
+        }
+        //如果没有返回成功，则报错
+        return RespBean.error(RespBeanEnum.PASSWORD_UPDATE_FAIL);
+    }
+```
+
+5，在RespBeanEnum中新增异常：
+
+![image-20220414195801053](zseckill.assets/image-20220414195801053.png)
+
+### 缓存优化后windows压测-商品列表接口
+
+1，现在相当于把“页面缓存+对象缓存+对象缓存的更新问题”处理好了，再进行一波压测看看效果。
+
+2，现在重启zseckill项目，确保虚拟机已开启（虚拟机提供了mysql和redis服务）：
+
+![image-20220414200258487](zseckill.assets/image-20220414200258487.png)
+
+3，因为现在不需要秒杀，先禁用掉 ”CSV ，HTTP cookie ，秒杀“；启用“商品列表”；清除聚合报告：
+
+![image-20220414215255559](zseckill.assets/image-20220414215255559.png)
+
+- 我：`http://localhost:8080/goods/toList`不使用cookie也可以访问，但是UserArgumentResolver会发现request没有cookie，因为用户未登录。不过没事，商品列表页能展示。
+  - 点击秒杀按钮的时候才强制用户一定得位于登录状态，否则点击按钮时会跳到登录页。
+
+4，运行JMeter3次；查看QPS并记录：
+
+![image-20220414220538728](zseckill.assets/image-20220414220538728.png)
+
+```
+测试用的线程数：单次5000*循环次10*点击运行3==150000
+测试接口：/goods/toList
+优化前，windows中的qps（吞吐量）为：2936
+```
+
+5，没优化前请求”商品列表“的QPS是2504，优化后是2936，在QPS本来就比较大的情况下，能有近500的优化已经不错了。
+
+### 商品详情页静态化
+
+1，即使页面优化后，让QPS达到了很大的提升，但是还有问题：
+
+- 我们现在渲染出来的是一个完整的html，即使html缓存起来了，但是从后端把html发送到前端的时候，发送的是一个完整的html，这个数据量很大；
+- 我们要把前端不变化的地方直接静态化，这样就需要用到前后端分离了：前端负责前端，后端专门负责发送一些需要变动的数据。
+- 但是本项目就不会专门弄一个前端分离的框架(如vue)，然后再写一个前端的页面，这样太麻烦了；我们就简单一点，把前端设置为一个静态的html页面，里面对应的一些数据做变更就可以了。
+
+2，
+
+https://www.bilibili.com/video/BV1sf4y1L7KE?p=39&spm_id_from=pageDriver
+
+
+
+
 
 ## 服务优化
 

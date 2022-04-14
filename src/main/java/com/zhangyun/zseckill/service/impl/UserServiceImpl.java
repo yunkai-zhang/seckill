@@ -119,4 +119,33 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         }
         return user;
     }
+
+    /**
+     * 更新密码
+     * */
+    @Override
+    public RespBean updatePassword(String userTicket, String password,HttpServletRequest request,HttpServletResponse response) {
+        //先根据cookievalue从redis中拿到user对象
+        User user = getUserByCookie(userTicket, request, response);
+
+        //如果从redis中没有获取到用户，抛出异常
+        if (user == null) {
+            throw new GlobalException(RespBeanEnum.MOBILE_NOT_EXIST);
+        }
+
+        //将输入密码直接进行两次加密，并存入user
+        user.setPassword(MD5Util.inputPassToDBPass(password, user.getSalt()));
+        //更新数据库中当前user的密码
+        int result = userMapper.updateById(user);
+        //如果数据库更新成功的话
+        if (1 == result) {
+            //删除Redis中的本user对象
+            redisTemplate.delete("user:" + userTicket);
+            //返回成功
+            return RespBean.success();
+        }
+        //如果没有返回成功，则报错
+        return RespBean.error(RespBeanEnum.PASSWORD_UPDATE_FAIL);
+    }
+
 }
