@@ -3,7 +3,9 @@ package com.zhangyun.zseckill.controller;
 import com.zhangyun.zseckill.pojo.User;
 import com.zhangyun.zseckill.service.IGoodsService;
 import com.zhangyun.zseckill.service.IUserService;
+import com.zhangyun.zseckill.vo.DetailVo;
 import com.zhangyun.zseckill.vo.GoodsVo;
+import com.zhangyun.zseckill.vo.RespBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
@@ -118,10 +120,87 @@ public class GoodsController {
     /*
      * 跳往商品详情页
      * */
-    @RequestMapping(value="/toDetail/{goodsId}",produces = "text/html;charset=utf-8")
+    @RequestMapping(value="/toDetail/{goodsId}")
     @ResponseBody
     //使用@PathVariable指定url路径中参数作为本形参的输入。
-    public String toDetail(Model model, User user,@PathVariable Long goodsId,HttpServletRequest request,HttpServletResponse response){
+    public RespBean toDetail(Model model, User user, @PathVariable Long goodsId){
+
+        //获取到goods中定义的秒杀时间段信息，并和当前时间对比来判断
+        GoodsVo goodsVo = goodsService.findGoodsVoByGoodsId(goodsId);
+        Date startDate = goodsVo.getStartDate();
+        Date endDate = goodsVo.getEndDate();
+        Date nowDate = new Date();
+        //秒杀状态
+        int secKillStatus = 0;
+        //秒杀倒计时
+        int remainSeconds = 0;
+        if (nowDate.before(startDate)) {
+            //秒杀还未开始；seckillStatus是初始值0
+            remainSeconds = (int) ((startDate.getTime() - nowDate.getTime()) / 1000);
+        } else if (nowDate.after(endDate)) {
+            //秒杀已经结束
+            secKillStatus = 2;
+            remainSeconds = -1;
+        } else {
+            //秒杀进行中
+            secKillStatus = 1;
+            remainSeconds = 0;
+        }
+
+        DetailVo detailVo = new DetailVo();
+        detailVo.setUser(user);
+        detailVo.setGoodsVo(goodsVo);
+        detailVo.setRemainSeconds(remainSeconds);
+        detailVo.setSecKillStatus(secKillStatus);
+
+        //给前端返回的RespBean中包含了detailVo，detailVo中又包含了前端需要的动态数据
+        return RespBean.success(detailVo);
+    }
+    /*
+    * 跳往商品详情页
+    * */
+    @RequestMapping("/toDetail2/{goodsId}")
+    //使用@PathVariable指定url路径中参数作为本形参的输入。
+    public String toDetail2(Model model, User user,@PathVariable Long goodsId){
+        //把用户信息传入到前端
+        model.addAttribute("user",user);
+        //获取到goods中定义的秒杀时间段信息，并和当前时间对比来判断
+        GoodsVo goodsVo = goodsService.findGoodsVoByGoodsId(goodsId);
+        Date startDate = goodsVo.getStartDate();
+        Date endDate = goodsVo.getEndDate();
+        Date nowDate = new Date();
+        //秒杀状态
+        int secKillStatus = 0;
+        //秒杀倒计时
+        int remainSeconds = 0;
+        if (nowDate.before(startDate)) {
+            //秒杀还未开始；seckillStatus是初始值0
+            remainSeconds = (int) ((startDate.getTime() - nowDate.getTime()) / 1000);
+        } else if (nowDate.after(endDate)) {
+            //秒杀已经结束
+            secKillStatus = 2;
+            remainSeconds = -1;
+        } else {
+            //秒杀进行中
+            secKillStatus = 1;
+            remainSeconds = 0;
+        }
+
+        //把商品信息传入前端
+        model.addAttribute("remainSeconds", remainSeconds);
+        model.addAttribute("goods", goodsVo);
+        model.addAttribute("secKillStatus", secKillStatus);
+
+        //由controller指定跳往的前端页面，跳转的时候model携带了要给前端的参数
+        return "goodsDetail";
+    }
+    /*
+     * 跳往商品详情页
+     * */
+    @RequestMapping(value="/toDetail3/{goodsId}",produces = "text/html;charset=utf-8")
+    @ResponseBody
+    //使用@PathVariable指定url路径中参数作为本形参的输入。
+    public String toDetail3(Model model, User user,@PathVariable Long goodsId,HttpServletRequest request,HttpServletResponse response){
         //引入redis操作
         ValueOperations valueOperations = redisTemplate.opsForValue();
         String html = (String)valueOperations.get("goodsDetails:"+goodsId);
@@ -167,43 +246,5 @@ public class GoodsController {
             valueOperations.set("goodsDetail:"+goodsId,html,1, TimeUnit.MINUTES);//goodsDetail是自定义的redis key，对应的value是html。
         }
         return html;
-    }
-    /*
-    * 跳往商品详情页
-    * */
-    @RequestMapping("/toDetail2/{goodsId}")
-    //使用@PathVariable指定url路径中参数作为本形参的输入。
-    public String toDetail2(Model model, User user,@PathVariable Long goodsId){
-        //把用户信息传入到前端
-        model.addAttribute("user",user);
-        //获取到goods中定义的秒杀时间段信息，并和当前时间对比来判断
-        GoodsVo goodsVo = goodsService.findGoodsVoByGoodsId(goodsId);
-        Date startDate = goodsVo.getStartDate();
-        Date endDate = goodsVo.getEndDate();
-        Date nowDate = new Date();
-        //秒杀状态
-        int secKillStatus = 0;
-        //秒杀倒计时
-        int remainSeconds = 0;
-        if (nowDate.before(startDate)) {
-            //秒杀还未开始；seckillStatus是初始值0
-            remainSeconds = (int) ((startDate.getTime() - nowDate.getTime()) / 1000);
-        } else if (nowDate.after(endDate)) {
-            //秒杀已经结束
-            secKillStatus = 2;
-            remainSeconds = -1;
-        } else {
-            //秒杀进行中
-            secKillStatus = 1;
-            remainSeconds = 0;
-        }
-
-        //把商品信息传入前端
-        model.addAttribute("remainSeconds", remainSeconds);
-        model.addAttribute("goods", goodsVo);
-        model.addAttribute("secKillStatus", secKillStatus);
-
-        //由controller指定跳往的前端页面，跳转的时候model携带了要给前端的参数
-        return "goodsDetail";
     }
 }

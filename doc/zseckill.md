@@ -5178,17 +5178,110 @@ OK
 
 5，没优化前请求”商品列表“的QPS是2504，优化后是2936，在QPS本来就比较大的情况下，能有近500的优化已经不错了。
 
-### 商品详情页静态化
-
-1，即使页面优化后，让QPS达到了很大的提升，但是还有问题：
+6，即使页面优化后，让QPS达到了很大的提升，但是还有问题：
 
 - 我们现在渲染出来的是一个完整的html，即使html缓存起来了，但是从后端把html发送到前端的时候，发送的是一个完整的html，这个数据量很大；
 - 我们要把前端不变化的地方直接静态化，这样就需要用到前后端分离了：前端负责前端，后端专门负责发送一些需要变动的数据。
 - 但是本项目就不会专门弄一个前端分离的框架(如vue)，然后再写一个前端的页面，这样太麻烦了；我们就简单一点，把前端设置为一个静态的html页面，里面对应的一些数据做变更就可以了。
 
-2，
+### 商品详情页静态化
+
+#### 前言
+
+1，现在缓存的是整个页面，传输给前端的时候也是传输整个页面；这个数据量很大，所以我们要把这个页面拆分出来。
+
+- 页面中的很多内容其实是不需要传输的；真正需要传输的可能就是几个经常需要变动的数据。
+- 我们可以把静态页面和一些动态的数据拆分开；拆分出来的静态页面可以利用浏览器的缓存让前端存着，减少整个数据量的传输
+- 现在前后端分离已经是比较流行了，像view，react 等前端框架比较火，但是本项目就不重新写一个前端框架出来，而是用ajax处理一下。因为拆分后前端就是静态页面，静态页面要获取数据的话我们就不再使用“模板引擎渲染页面+model传输数据+后端控制跳转”，而是直接在前端进行页面跳转，并且通过ajax去接收数据和请求后端接口。
+
+2，用静态页面的原因，是因为像html，标签，js，等都不用传；但我们目前页面缓存传的是整个页面，所以本节要优化成静态页面+动态数据的方式：
+
+![image-20220416232611678](zseckill.assets/image-20220416232611678.png)
+
+3，重申，本项目做前后端分离就没用前端框架vue，而是用ajax模拟前后段分离。
+
+4，我们尝试静态化“商品详情页面”，因为商品详情页面还是比较复杂的，我们来处理它。
+
+#### 实战
+
+1，拷贝老toDetail方法，并重命名为toDetail3保存记录；在toDetail方法上做修改：
+
+![image-20220416233052519](zseckill.assets/image-20220416233052519.png)
+
+2，现在toDetail就不是直接做页面的处理了：
+
+- RequestMapping中不需要produces了，因为现在本函数不是直接做页面的处理
+- 输入删掉req resp
+- 不用缓存完整页面了。
+- webcontext处理不需要了，因为页面内容不需要在后端处理
+- model相关都删除，不需要model传输数据了，现在是用ajax传输数据。
+  - [axios和ajax区别](https://blog.csdn.net/qq_42942555/article/details/88400721)
+
+3，因为现在不是通过model传输数据，而是前端通过ajax请求后端的接口，然后后端返回请求需要的数据；所以新建vo对象用来承载返回给前端的信息：
+
+```java
+package com.zhangyun.zseckill.vo;
+
+import com.zhangyun.zseckill.pojo.User;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+/**
+ * 商品详情返回对象
+ * @ClassName: DetailVo
+ */
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class DetailVo {
+
+
+    private User User;
+
+    private GoodsVo goodsVo;
+
+    private int secKillStatus;
+
+    private int remainSeconds;
+
+}
+
+```
+
+4，修改GoodsController，现在不返回String了，而是用共用的返回对象RespBean；重点修改内容如下：
+
+![image-20220416235701874](zseckill.assets/image-20220416235701874.png)
+
+5，因为现在使用前后端分离，所以跳转到商品详情页的请求要变：
+
+原来是：
+
+![image-20220417000316474](zseckill.assets/image-20220417000316474.png)
+
+变成：
+
+![image-20220417000409011](zseckill.assets/image-20220417000409011.png)
+
+6，因为现在要进行页面静态化，而静态化的文件默认放到static里，所以我们把文件复制到static文件夹中，并重命名为htm结尾：
+
+![image-20220417000035761](zseckill.assets/image-20220417000035761.png)
+
+- 因为现在引入了thymeleaf，不修改后缀为htm的话，还是会默认去thymeleaf中找，会有问题。
+
+7，处理`goodsDetail.htm`：
+
+```html
+
+```
+
+- 不需要thymeleaf，所以可以把`xmlns:th="http://www.thymeleaf.org"`删掉，并把`th`删掉。
 
 https://www.bilibili.com/video/BV1sf4y1L7KE?p=39&spm_id_from=pageDriver
+
+15.40
+
+
 
 
 
