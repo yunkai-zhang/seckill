@@ -5,10 +5,9 @@
 ![image-20220325200643495](zseckill.assets/image-20220325200643495.png)
 
 - 没有前后端分离，因为本项目主要是为了展示秒杀。
-  - 我可以把他改成前后端分离的，体现工作量。
+  - 我：可以把他优化成前后端分离的。
 
 - 通过mybatis plus可以逆向生成代码到controller层；还可以继承swagger等。
-  - 我：应该学一下
 - RabittMQ做异步，队列缓冲，流量削峰；redis主要用作缓存。
 
 #### 课程介绍
@@ -92,7 +91,7 @@ spring:
     url: jdbc:mysql://127.0.0.1:3306/seckill?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
     username: root
     password: 123456
-    # hikari是springboot默认自带的，号称最快的连接池。连接池是什么：https://blog.csdn.net/cbmljs/article/details/87858536
+    # hikari是springboot默认自带的，号称最快的（我：数据库）连接池。连接池是什么：https://blog.csdn.net/cbmljs/article/details/87858536
     hikari:
       # 连接池名
       pool-name: DateHikariCP
@@ -136,6 +135,7 @@ logging:
 ![image-20220325213344341](zseckill.assets/image-20220325213344341.png)
 
 - service包下，一般还有一个用于实现的包。
+- 20230208我：项目目录结构是经典的mvc架构，[参考什么是mvc](http://t.csdn.cn/6PxGl)；mapper包也可以命名为dao包，[参考ssm各层含义](http://t.csdn.cn/HEeCM)。
 
 #### 启动类处理
 
@@ -182,7 +182,7 @@ public class DemoController {
     @RequestMapping(value = "/helloseckill", method = RequestMethod.GET)
     public String hello(Model model) {
         model.addAttribute("name", "value");
-        //我：请求/zyjava/hello会被转送到本方法，本方法做视图处理后，会返回给对应thymeleaf页面展示
+        //我：请求/zyjava/hello会被转送到本方法，本方法做视图处理后，会返回给对应thymeleaf页面（我：本例中，页面名为“hello"）展示
         return "hello";
     }
 }
@@ -240,6 +240,8 @@ public class DemoController {
 
 - 数据库名，要和yml中的datasource.url中的数据库名一致。
 - uft8能存的utf8mb4都能存
+  - 我：[参考](http://t.csdn.cn/EEjes)，历史原因，mysql的utf8是阉割版的，utf8mb4才是完整的UTF=8实现。
+
 
 3，新建表：
 
@@ -275,10 +277,21 @@ PRIMARY KEY(`id`)
 
 #### 两次MD5加密
 
+0，我：Md5加密介绍：
+
+- 什么是md5加密？
+  - 答：它是一种信息摘要算法，[参考](http://t.csdn.cn/vO49s)
+- md5加密可以解密吗？
+  - 答：因为对原文进行了摘要采集，理论上是不可破解的，[参考](http://t.csdn.cn/XDD5J)
+- md5加密不能解密的话有什么用？
+  - 答：因为md5加密后输出的是大整数，几乎不会出现不同输入在md5加密后得到相同输出的情况，所以可以近似认为md5加密前后的输入和输出是1对1的。所以数据库可以存储md5加密后的密码，这样就算数据库被黑，明文密码也不会被泄露；而自己只需要比较md5加密后的密码是否一致，就可以判断明文密码是否一致。[参考](http://t.csdn.cn/u0cTo)
+
 1，用两次MD5加密：
 
 - 原因：保证安全
 - 第一次加密：前端进行加密，防止网络截获明文密码
+  - 我：https请求本身就是加密传输，一般传输都是安全的，这里只是为了增加安全性；一般抓包分析网络，看传输层的tcp包即可，不用向下看应用层的https包，所以就算抓到tcp包也不知道下面的https里的加密内容，[参考](https://zhuanlan.zhihu.com/p/392432613).
+
 - 第二次加密：服务端进行加密，加强安全性
 
 2，为什么不把客户端加密的密码直接存入数据库？：
@@ -300,6 +313,8 @@ PRIMARY KEY(`id`)
             <version>3.6</version>
         </dependency>
 ```
+
+
 
 4，准备utils包专门写工具类：
 
@@ -386,6 +401,8 @@ public class MD5Util {
 - 网友说：老师说这里是“习惯性的加上component注释”，但是其实工具类不用加@Component。工具类本来就使用方法就行了，根本不需要注入到容器里面
 
 - 我和高赞网友：这里老师应该讲错了，老师之前讲的前端加密应该不是前端用javascript加密，而是前端明文传过来后端再进行两次加密
+  - 20230208我：后端着两次加密是为了得到两次加密后的密文。往后面阅读本项目就会发现，本项目的真实思路就是“前端jsp做一次md5加密，后端收到前端密文后再做一次md5加密；后端通过判断两次md5加密后的密文和数据库中是否一致，来判断用户是否输入了正确的密码”
+
 
 ### 逆向工程
 
@@ -511,7 +528,7 @@ public class CodeGenerator {
         AutoGenerator mpg = new AutoGenerator();
 
         // 全局配置
-        GlobalConfig gc = new GlobalConfig();
+        GlobalConfig gc = new GlobalConfig();//这个类在com.baomidou.mybatisplus.generator.config
         //获取当前项目的路径
         String projectPath = System.getProperty("user.dir");
         //设置输出路径，在当前项目路径下
@@ -520,7 +537,7 @@ public class CodeGenerator {
         gc.setAuthor("zhangyun");
         //打开输出目录
         gc.setOpen(false);
-        //xml开启BaseResultMap
+        //xml开启BaseResultMap//我：resultmap和resulttype的区别，参考http://t.csdn.cn/DlazP
         gc.setBaseResultMap(true);
         //xml开启BaseColumnList
         gc.setBaseColumnList(true);
@@ -849,7 +866,7 @@ public class LoginController {
   - 前端盐的用法，和后端也一样。
 - 前端登录过程讲解：doLogin函数中有注释
   - 问答问：前端的确加密了，但是后端自己也做了两次加密是为什么？
-    - 自答：可能两次加密时老师为了演示两次加密的效果；后端真实处理的时候，使用的是第二次加密的函数（而非做两次加密的函数）。
+    - 自答：后端连续两次加密是老师为了演示两次加密的效果；后端真实处理的时候，使用的只是第二次加密的函数（而非做两次加密的函数）。
 
 
 #### 登录-编写执行登录任务的准备
@@ -903,6 +920,7 @@ public class RespBean {
 ```
 
 - 本服务端执行前端的请求成功的话，会给前端返回success
+- 我：RespBean类中可以不import而直接使用RespBeanEnum，是因为两个类在一个包下。类互相访问的方式可以[参考](http://t.csdn.cn/foP2Y)
 
 3，编写公共返回对象respBean的枚举：
 
@@ -992,7 +1010,7 @@ Caused by: org.springframework.beans.factory.NoSuchBeanDefinitionException: No q
 
 #### dologin基本功能与前端盐的作用
 
-1，编写dologin方法的参数所需要的vo：
+1，在LoginController中编写dologin方法的参数所需要的vo：
 
 ![image-20220328110819004](zseckill.assets/image-20220328110819004.png)
 
@@ -1011,6 +1029,8 @@ public class LoginVo {
 
 ```
 
+- 我：LoginController中，不仅要写toLogin()，还要写doLogin()
+
 2，编写dologin方法，先返回null，测试盐的功能：
 
 ```java
@@ -1027,6 +1047,8 @@ public class LoginVo {
         return null;
     }
 ```
+
+- 我：@ResponseBody作用其实是将java对象转为json格式的数据；[参考](http://t.csdn.cn/UvjSn)。在本例中，就是把respbean转化为json对象并写入http response body。
 
 3，输入密码123456，手机号任意；点击登录：
 
@@ -1155,6 +1177,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
 
 ```
 
+- 我：这里可以看到，程序比较二次md5加密后的密文，就可以判断用户输入的密码是否正确；这利用了md5加密的“不同输入几乎不可能有相同输出”的特点。这样就不需要存储敏感的明文密码，也能实现密码校验。
+
 6，在RespBeanEnum中添加，登录相关的枚举：
 
 ![image-20220328134706460](zseckill.assets/image-20220328134706460.png)
@@ -1234,7 +1258,7 @@ public class ValidatorUtil {
 
 ![image-20220328135943957](zseckill.assets/image-20220328135943957.png)
 
-- 还没编写tolist跳转，所以404；
+- login.html中可以看到，前端请求后端`"/login/doLogin"`接口成功的话，前端会进一步请求后端的`/goods/toList`接口，但此时后端还没编写tolist跳转，所以这里报错404；
 
   ![image-20220328140025650](zseckill.assets/image-20220328140025650.png)
 
@@ -1349,7 +1373,7 @@ import javax.validation.ConstraintValidatorContext;
 public class IsMobileValidator implements ConstraintValidator<IsMobile, String> {
 
     //记录是否是必填的
-    private boolean required = false;
+    private boolean required = false;//20230208我：这里先写成false，可能会在initialize()中被修改
 
     //初始化参数，即拿到使用注解时填的参数的值
     @Override
@@ -1380,6 +1404,8 @@ public class IsMobileValidator implements ConstraintValidator<IsMobile, String> 
 
 ![image-20220328210836998](zseckill.assets/image-20220328210836998.png)
 
+- 我：这里把password也注释了，因为password用js303规范也自动校验了，不需要额外校验。
+
 7，重启项目，输入不合法的电话号，执行登录操作：
 
 前端可以看到doLogin请求失败了：
@@ -1395,9 +1421,13 @@ public class IsMobileValidator implements ConstraintValidator<IsMobile, String> 
 8，现在错误提示没在页面上展示，而是在控制输出台展示：
 
 - 因为异常只是普通抛出，没有正确处理并让前端显示
+  - 问问问：所以注解发现不对会抛出异常，后端异常就会自动给前端返回400？
+    - 我：我猜应该是的，比如前端请求还没编写的tolist接口时，会报错404，这个就是框架（或者http协议）自动给前端传的吧，参考[报错404的常见原因](http://t.csdn.cn/so3aU)。另外，前端请求一个不存在的接口，返回404，这个404应该是应用层的http协议给的，毕竟服务器都不存在，不可能是服务端给的，参考[http常见错误code的原因](http://t.csdn.cn/dRCIz)。
+      - 坛友：用的是HTTP协议，给是浏览器给的404
+      - 坛友：一般情况应该是服务器接受到你的接口请求没有匹配到，给你反的404
 - 后面我们要定义异常，把这个异常信息正确地展示到前端页面
 
-#### 异常处理
+#### 111111异常处理
 
 1，上一小节的BindException，应该被捕获，然后抛出对应的信息，并让前端展示；我们通过ControllerAdvice和ExceptionHandler两个组合注解来处理，因为虽然这两个组合注解只能处理控制器抛出的异常，但是这两个组合注解的自由度更大。
 
