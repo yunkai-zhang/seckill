@@ -1427,7 +1427,7 @@ public class IsMobileValidator implements ConstraintValidator<IsMobile, String> 
       - 坛友：一般情况应该是服务器接受到你的接口请求没有匹配到，给你反的404
 - 后面我们要定义异常，把这个异常信息正确地展示到前端页面
 
-#### 111111异常处理
+#### 异常处理
 
 1，上一小节的BindException，应该被捕获，然后抛出对应的信息，并让前端展示；我们通过ControllerAdvice和ExceptionHandler两个组合注解来处理，因为虽然这两个组合注解只能处理控制器抛出的异常，但是这两个组合注解的自由度更大。
 
@@ -1513,6 +1513,9 @@ public class GlobalExceptionHandler {
 - 我强调：ExceptionHandler会在controller层处理 所有层发生的所有异常，前提是异常要被传到controller层。
 - ExceptionHandler的处理异常的能力来源于@RestControllerAdvice
 - 我推测：调用doLogin导致的错误，所以会让controller层的LoginController类的doLogin，把含有BindException中的提示信息的respBean，返回给前端；让前端展示错误提示。
+  - （读完笔记回头看这个问题）20230211我理解：异常会在controller层被捕捉。本来controller层的接口返回的就是RespBean类型的数据，处理controller层异常的被`@ExceptionHandler`注解的方法自然也该返回RespBean类型的数据；这样`@ExceptionHandler`注解的方法处理完异常后，就还是会通过Controller层的接口给前端返回Reapbean，前端就知道后端发生了什么并展示给用户。
+    - （如果是抛出异常的话，一个函数A处理不了异常就把异常抛出给调用函数A的函数B，让B处理异常）。但这里是在Controller层处理异常，这里就是controller层出现异常后，异常位置之后的接口部分都不用运行了，直接进入`@ExceptionHandler`注解的方法来处理异常，再以`@ExceptionHandler`注解的方法的返回值作为出异常的controller层接口的返回值，返回给前端。
+
 
 3，RespBeanEnum中添加BIND_ERROR：
 
@@ -1737,7 +1740,7 @@ public final class CookieUtil {
             if (cookieValue == null) {
                 cookieValue = "";
             } else {
-                cookieValue = URLEncoder.encode(cookieValue, encodeString);
+                cookieValue = URLEncoder.encode(cookieValue, encodeString);//20230210我：这里制定了编码方式，而不是用默认的utf8
             }
             Cookie cookie = new Cookie(cookieName, cookieValue);
             if (cookieMaxage > 0) {
@@ -1835,8 +1838,7 @@ public class UUIDUtil {
 
 - 前端收到代表成功的respBean时，就能根据respBean中的message和code做前端的工作。
 - 问答问：像cookie和session等信息，是往req中传还是往resp中？
-  - 我：我记得是放到resp返回给客户端
-
+  - 我：session要从req中获取，cookie是放到resp返回给客户端，[参考](http://t.csdn.cn/K2Wo8)
 
 5，在LoginController中添加添加两个入参req resp，好把用户信息+用户cookie存入session：
 
@@ -2108,7 +2110,7 @@ ps -ef|grep redis
 
 #### redis操作命令
 
-1，略，详情见redis转门的笔记。
+1，略，详情见redis专门的笔记。
 
 2，注意：
 
@@ -2264,6 +2266,7 @@ public class RedisConfig {
 ```
 
 - 这样redistemplate序列化就配置好了
+- 20230210我：这里可以看到，@Configuration表示一个配置类，配置类中@Bean注解的方法的返回内容，会被注册到Spring中；有需要用到该返回内容的地方，@Autowired一下就能用了。
 
 7，现在该service层的业务代码UserServiceImpl；之前把用户信息放在session中，现在我们把用户信息放到redis中：
 
@@ -2279,11 +2282,13 @@ public class RedisConfig {
 
 ![image-20220330133153062](zseckill.assets/image-20220330133153062.png)
 
-- getUserByCookie中传入request和response主要是为了优化，为了当用户不为空，我把cookie重新设置一下
+- getUserByCookie中传入request和response主要是为了优化，为了当用户不为空时把cookie重新设置一下
 
 9，在UserServiceImpl中实现getUserByCookie方法：
 
 ![image-20220330133330263](zseckill.assets/image-20220330133330263.png)
+
+- 20230210我：这里重新设置cookie，应该是为了保证只要user处于登录状态（即redis中能根绝userticket拿到user），那么就得保证客户端一定会接收到合法可用的cookie，这样就避免用户重新登录。
 
 10，在GoodsController中编写代码：
 
@@ -2329,7 +2334,7 @@ public class RedisConfig {
 - 比如登录完成后到商品列表页，用户点击商品要进入商品详情页，此时又要做如上两步判断一次用户的登录情况，太麻烦重复臃肿了。
 - 可以优化！
 
-2，如果不想在每个接口中做判断用户是否已登录的操作，可以不往方法传`HttpServletRequest request, HttpServletResponse response, @CookieValue("userTicket") String userTicket`，而改为直接传一个user对象，直接在方法中处理业务逻辑
+2，如果不想在每个接口中做判断用户是否已登录的操作，可以不往方法传`HttpServletRequest request, HttpServletResponse response, @CookieValue("userTicket") String userTicket`，而改为直接传一个user对象，直接在方法中处理业务逻辑（20230210我：意思就是，只在方法中处理业务逻辑，不用在每个方法中都判断用户是否已登录；判断登录的任务在传入方法前已经被ArgumentResolver搞定了）
 
 ![image-20220330223735701](zseckill.assets/image-20220330223735701.png)
 
@@ -2370,7 +2375,7 @@ public class UserArgumentResolver implements HandlerMethodArgumentResolver {
     private IUserService iUserService;
 
     /*
-    * 本函数相当于是做一层条件的判断（可以看到返回类型是布尔类型），只有符合supportsParameter方法的条件（此方法返回false）之后，
+    * 本函数相当于是做一层条件的判断（可以看到返回类型是布尔类型），只有符合supportsParameter方法的条件（此方法返回false（20230210我：这里应该是true））之后，
     * 才会执行下面的resolveArgument方法。所以我们在supportsParameter中做一层条件的判断。
     * */
     @Override
@@ -2404,7 +2409,7 @@ public class UserArgumentResolver implements HandlerMethodArgumentResolver {
 
 ```
 
-- 我和网友：这个类实现了，只要请求的函数的参数里有User类，那么这些请求都被supportsParameter拦截并送到resolveArgument中进行进一步处理，体现了mvc参数解析器也有拦截功能；resolveArgument会做一系列处理，并返回一个被supportsParameter拦截的参数类型的对象，该返回对象会传递给被拦截的需要User类做参数的函数。
+- 我和网友：这个类实现了，只要请求的函数的参数里有User类，那么这些请求都被supportsParameter拦截并送到resolveArgument中进行进一步处理，体现了mvc参数解析器也有拦截功能；resolveArgument会做一系列处理，并返回一个被supportsParameter拦截的参数类型的对象，该返回对象会传递给被拦截的需要User类做参数的函数（20230210我：这里可以看到，如果函数收到的user是null，表示用户没登录）。
   - 这个类实现了，在每个Controller的方法参数入参之前就做好了校验；相当于进一步解耦了一些东西。
 
 4，现在开始实现“1 2”说的功能，在config包下，创建一个MVC配置类WebConfig：
@@ -2452,6 +2457,8 @@ public class WebConfig implements WebMvcConfigurer {
 ![image-20220330233321664](zseckill.assets/image-20220330233321664.png)
 
 - 我理解：toList的参数user是从UserArgumentResolver.resolveArgument接收的。
+- 20230210我：这里应该还有个缺憾，就是当用户没登录时，resolveArgument传递的user为null；所以在每个controller的一开始还是要看user是否为null，如果是null就要`return "login"`去到登录页面来重新登录。
+  - 我：这是读到笔记后面的“秒杀功能实现”回来补充的。我理解本项目的逻辑是，只有在做秒杀操作（请求`/seckill`）的时候才会判断user是否为null，并让user为null的用户跳往登录页做登录操作；而在非秒杀的其他页，用户不登录也可以用游客的身份闲逛，不关心user是否为null。
 
 6，启动项目，访问登录页``，输入mysql数据库中有的账号密码来登录；前端成功拿到admin：
 
@@ -2523,6 +2530,7 @@ PRIMARY KEY( `id` )
 2，秒杀商品表会和商品的主键id做一个外键的关联，方便后期做处理
 
 - 有了秒杀商品表，同理也要有秒杀订单表。
+- 20230210我：阿里巴巴mysql规范中，禁止使用外键约束；外键约束是在表结构中使用`foreign key`来指明当前表的字段是别的个表的外键，[参考](https://www.zhihu.com/question/581805093/answer/2881345481)；这里的商品id是外键，但是没在表结构中加外键约束，所以没有违反阿里巴巴开发规范。这里外键的使用，是后端自己定，和外键约束无关。
 
 3，编写秒杀商品表：
 
@@ -2540,7 +2548,7 @@ PRIMARY KEY(`id`)
 
 - 秒杀商品表中要有“商品id”，做商品表的“商品id”做外键关联
   - 网友：直接通过秒杀表中的商品ID，获取其他数据就行。
-- 秒杀商品表中的“秒杀商品id”，应该称为“主键id”更确切一点，不过还是就叫“秒杀商品id”吧。
+- 秒杀商品表中的“秒杀商品id”，应该称为“主键id”更确切一点；不过还是就叫“秒杀商品id”吧，这样体现本字段（秒杀商品id）是当前表（秒杀商品表）的主键。
 - 三个重点表项：
   - 商品ID
   - 库存数量
@@ -2607,6 +2615,8 @@ INSERT INTO `t_seckill_goods` VALUES
 ![image-20220331111033969](zseckill.assets/image-20220331111033969.png)
 
 ![image-20220331111049269](zseckill.assets/image-20220331111049269.png)
+
+- 我：这里就可以看到逆向工程多给力；很多个表，都可以瞬间逆向得到需要的对应的类！
 
 5，查看在逆向工程中生成的文件们；并把生成的文件复制到自己的工程中：
 
@@ -2681,6 +2691,8 @@ public class GoodsVo extends Goods {
 - 注意：类中要使用bean时，一定要通过autowired注入bean，否则使用bean时会报空指针异常！
 
 - 网友：前后端分离后就只需要传json了
+  - 我：但是这里前后端没分离，“goodsList”表示的是前端的页面名
+
 
 3，为了支持GoodsController能获取商品列表，IGoodsService接口中添加查找goods信息的方法声明，这里的goods信息以GoodsVo实例化对象的方式返回：
 
@@ -2828,7 +2840,9 @@ public interface GoodsMapper extends BaseMapper<Goods> {
 
 - 推荐在mysql客户端上写好语句，测试成功后再黏贴进xml。
 - 注意：resultType的包路径不要写错，或写成别人的。
-- 网友问问问：这里为什么要用 left join  不应该用 inner join 吗  left  会多出来一行的？
+- 网友问答问：这里为什么要用 left join  不应该用 inner join 吗  left  会多出来一行的？
+  - 我：这里想以t_seckill_goods表的内容为主体吧，[参考](http://t.csdn.cn/jB77U)
+
 
 #### 前端内容编写
 
@@ -2950,6 +2964,8 @@ public interface GoodsMapper extends BaseMapper<Goods> {
 ```
 
 - 问问问：前端不需要这个用户信息，需要往model里加吗？controller中的函数接收User主要是为了判断请求的用户有没有登录，是不是还得把user传会前端好更新cookie？还没细看。
+  - 20230210我：往下看一点就知道，前端会通过判断后端传来的user是否为空来决定是否展示页面，如果user为空就会不展示页面，并提示用户去登录。更新的cookie是在ArgumentResolver就放进resp中了，和这里返回给前端的user没关系。
+
 
 3，编写Service层接口中的方法声明：
 
@@ -3042,13 +3058,15 @@ public interface GoodsMapper extends BaseMapper<Goods> {
 </html>
 ```
 
-- ` <span th:if="${user eq null}">`可以明白controller往前端传user的原因，即user为空的话说明用户未登录，提示用户登录！
+- ` <span th:if="${user eq null}">`可以明白**controller往前端传user的原因**，即user为空的话说明用户未登录，提示用户登录！
 
   - 问答问：这里是不是做了重复判断？controller都能正常返回，说明针对User的参数解析器成功传递了User，说明没登录的话都看不到这个页面？
 
     - 这是静态资源html，可以直接通过url访问（不一定是由Controller跳来的）。如下就是通过访问url`http://localhost:8080/goods/toDetail/2`直接来到的商品详情页，页面就会侦测到用户未登录并提示请登录：
 
       <img src="zseckill.assets/image-20220401113603295.png" alt="image-20220401113603295" style="zoom:50%;" />
+      
+      - 我：用户没登录的情况下，允许看商品详情也是合理的。只是不会允许未登录的用户去购买商品。
 
 8，重启项目，重新登录登录：
 
@@ -3059,6 +3077,8 @@ public interface GoodsMapper extends BaseMapper<Goods> {
 点击“详情”来到商品详情页：
 
 ![image-20220401112519364](zseckill.assets/image-20220401112519364.png)
+
+- 我问问问：这里“没有收货地址的提示。。。”是写死的，后续要根据需要完善成不写死的状态。
 
 9，这只是商品详情的最基本信息展示，还需要实现：秒杀按钮控制，开始/结束时间。
 
@@ -3166,7 +3186,7 @@ public interface GoodsMapper extends BaseMapper<Goods> {
 
 - 简单解释下前端：
   - \<head>处引入了各种前端需要的资源，尤其是common.js，可以利用common.js的`dates.format`把后端传来的日期格式化输出。
-  - 后端往前端传递的model中存储了secKillStatus ,能被前端的`<span th:if="${secKillStatus eq 0}">`使用，用于栈实不同的秒杀阶段
+  - 后端往前端传递的model中存储了secKillStatus ,能被前端的`<span th:if="${secKillStatus eq 0}">`使用，用于展示不同的秒杀阶段
   - `<form id="secKillForm" method="post" action="/seckill/doSeckill">`是下一小节“秒杀按钮”的处理，这里不讲解
   - `function countDown()`实现的是倒计时的功能；` $("#countDown").text(remainSeconds - 1);`表示修改页面显示的秒数，`$("#remainSeconds").val(remainSeconds - 1);`表示修改前端的秒数变量本体，两者互相依赖缺一不可才能正确展示倒计时。
   - `timeout`为setTimeout的返回值，为一个整数表示倒计时计时器的id；setTimeout表示每1000ms执行一下匿名函数；当remianSeconds==0时，会`if (timeout)`判断一下倒计时计时器是否还存在，存在的话就会清除倒计时计时器。[参考 setTimeout 和 clearTimeout_Tarafireworks的博客-CSDN博客_settimeout和cleartimeout](https://blog.csdn.net/weixin_44760073/article/details/119889308)
@@ -3174,7 +3194,6 @@ public interface GoodsMapper extends BaseMapper<Goods> {
   - 网友反驳：如果这个倒计时没有业务，是可以前端写，如果有业务，就不行
 - 我和高赞网友：这个代码有个问题，就是开始秒杀后，前端不再进行remainSeconds的减少，导致无法自动展示“秒杀已结束”。必须手动刷新页面，让后端给前端返回remainSeconds，前端才能判断出“秒杀已结束”。这个bug应该后续会改。
   - 我：把timeout = setTimeout那几行执行倒计时的代码，也放到“秒杀进行中”的代码块中，也不能解决问题，因为remain从0开始减为负数，导致系统瞬间就结束了秒杀。
-
 
 2，编写后端代码，为前端提供`secKillStatus`，`remainSeconds`：
 
@@ -3303,6 +3322,7 @@ public class SecKillController {
   - 网友：确实，controll层逻辑不宜太多。
 - 本类中QueryWrapper的用法：[参考文章 mybatis plus 条件构造器queryWrapper学习_bird_tp的博客-CSDN博客_querywrapper](https://blog.csdn.net/bird_tp/article/details/105587582)
 - 注意RequestMapping标记的代码的url请求中，驼峰命名的字母大小写和前端的请求是否一致，否则会404。
+- 20230210我：@RequestMapping的value值中`/`可加也可以不加，不加的话springmvc会自动补全`/`，[参考](http://t.csdn.cn/apRQi)
 
 3，给RespBeanEnum枚举中加入空库存“EMPTY_STOCK”和“REPEATE_ERROR”：
 
@@ -3413,7 +3433,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 ![image-20220402003545928](zseckill.assets/image-20220402003545928.png)
 
 ```html
-<!DOCTYPE HTML>
+<!DOCTYPE HTML> 
 <html xmlns:th="http://www.thymeleaf.org">
 <head>
     <title>订单详情</title>
@@ -3477,7 +3497,7 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 </html>
 ```
 
-2，拷贝OrderDetail.html页面（秒杀成功展示的订单页）进项目：
+2，拷贝secKillFail.html页面（秒杀失败的展示页）进项目：
 
 ![image-20220402003717728](zseckill.assets/image-20220402003717728.png)
 
@@ -3604,6 +3624,8 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
 1，Jmeter是Apache基于java的一个压力测试工具，可以用来对软件做一些压力测试。官网介绍：[Apache JMeter - Apache JMeter™](https://jmeter.apache.org/)
 
+- 我：**jmeter的常用操作及顺序**为：添加线程组-->添加http默认请求值-->添加取样器（http请求）-->添加监听器（表格查看）
+
 2，运维要求熟练掌握，java后端不要求深入掌握JMeter。
 
 #### 下载安装
@@ -3651,14 +3673,14 @@ public class OrderServiceImpl extends ServiceImpl<OrderMapper, Order> implements
 
 #### 高并发测试的一些概念
 
-1，一般准确来说，描述系统对并发的承受性时，应该问：在并发数为XX时，QPS是多少，或TPS是多少？
+1，一般准确来说，描述系统对**并发的承受性**时，应该问：在并发数为XX时，QPS是多少，或TPS是多少？
 
 - QPS：每秒查询率，即一台服务器每秒能做的查询的次数。
 
 - TPS：每秒事务数；这里的事务不是数据库那种事务，这里的事务指“客户机发起请求时开始计时，收到服务器响应后结束计时”，用这个时间差来计算使用的时间以及完成的一个事务的个数。 
 
 - TPS和QPS的区别：这个问题开始，我认为这两者应该是同一个东西,但在知乎上看到他们的英文名，现在我认为：
-  - QPS 每秒能处理查询数目，但现在一般也用于单服务接口每秒能处理请求数。
+  - **QPS** 每秒能处理查询数目，但现在一般也用于**单服务接口每秒能处理请求数**。
   - TPS 每秒处理的事务数目，如果完成该事务仅为单个服务接口，我们也可以认为它就是QPS。
   - 参考[(22条消息) 压力测试概念及方法(TPS/并发量)_Andy____Li的博客-CSDN博客_压测tps](https://blog.csdn.net/m0_37263637/article/details/88749318)
 
@@ -3840,9 +3862,7 @@ create user 'zhangyun'@'%' identified by '1234';
 
 ![image-20220402212826938](zseckill.assets/image-20220402212826938.png)
 
-- %表示任何的ip地址都能访问，像之前的
-
-root是localhost的，所以不能访问
+- %表示任何的ip地址都能访问，像之前的root是localhost的，所以不能访问
 
 <img src="zseckill.assets/image-20220402212705196.png" alt="image-20220402212705196" style="zoom:50%;" />
 
@@ -4122,7 +4142,8 @@ java -jar zseckill-0.0.1-SNAPSHOT.jar
 ![image-20220404005010333](zseckill.assets/image-20220404005010333.png)
 
 - 网友：这里无法跳转的原因是cookie没存上，而cookie没存上的原因是CookieUtil这个类中的doSetCookie放法只对xxx.xxx.xxx和xxx.xxx进行了域名分析，没有对四个的分析。
-  - 问问问我：但是我查看了redis数据库，登录后cookie存进去了，应该是没拿到；暂时不管了。
+  - 问答问我：但是我查看了redis数据库，登录后cookie存进去了，应该是没拿到；暂时不管了。
+    - 20230211我：后面会解决这个“没成功判断用户登录”的问题，原因就在cookieutil上
 
 #### ubuntu中安装+配置jmeter
 
@@ -4249,6 +4270,8 @@ windows配置好的界面中，选中“HTTP请求默认值”-》点击运行-�
 ![image-20220405232549328](zseckill.assets/image-20220405232549328.png)
 
 - 这里的名称即cookiename，值即为cookievalue；userTicket即接口`/user/info`需要的入参
+  - 20230211我：这个入参，不是指`/user/info`接口接收的值，而是jmeter模拟的http请求必须携带才能请求成功的参数，是在http请求的参数栏设置的；对本例而言，入参就是jmeter请求需要携带cookievalue。
+
 
 5，把线程数改成10000，并保存：
 
@@ -4284,6 +4307,9 @@ windows配置好的界面中，选中“HTTP请求默认值”-》点击运行-�
 
 ### 配置不同用户测试
 
+- 问答问：线程组设置的是10000个线程循环一次。这是”两个用户分别请求10000次“？or ”10000个线程中，每个线程随机选个用户作为自己然后去请求“？
+  - 我答：回答在“正式压测-秒杀接口”的“回答问题”章节。
+
 1，navicat准备多个用户：
 
 ![image-20220406224216576](zseckill.assets/image-20220406224216576.png)
@@ -4317,6 +4343,8 @@ windows配置好的界面中，选中“HTTP请求默认值”-》点击运行-�
 - 文件就是刚准备的conf.txt
 - userId就是数据库中用户表的id，即手机号
 - userTicket就是cookiename。
+  - 20230211我：userTicket本身是cookiename；conf.txt中第二列不同的值，就是同一个cookiename（即userTicket）针对不同用户的不同cookievalue。
+
 
 5，在JMeter中添加“配置文件-HTTPCookie管理器”：
 
@@ -4336,6 +4364,8 @@ windows配置好的界面中，选中“HTTP请求默认值”-》点击运行-�
 
 ![image-20220406231627252](zseckill.assets/image-20220406231627252.png)
 
+- 我：之前名为“用户信息”的取样器的参数中，存的是一个cookie，模拟的是一个人对接口不停请求；现在多个用户id和cookie都配置在conf.txt中，现在模拟的是多个人不同的人做请求，往后看笔记可以看到5000个不同的人携带各自的cookie同时请求秒杀接口。
+
 7，清除“监听器-聚合报告”的数据，为测试做准备
 
 8，运行JMeter进行压力测试：
@@ -4350,7 +4380,7 @@ windows配置好的界面中，选中“HTTP请求默认值”-》点击运行-�
 
 9，总结步骤：
 
-1. 配置csv的文件，用来存入测试url接口（本例为“/user/info”）需要提供的参数
+1. 配置csv的文件，用来存入测试url接口（本例为“/user/info”）需要提供的参数（我：本例为cookievalue）
 2. 准备cookie管理器，因为访问接口“/user/info”用到了cookie
 
 ### 正式压测-商品列表接口
@@ -4437,6 +4467,17 @@ windows配置好的界面中，选中“HTTP请求默认值”-》点击运行-�
 
 ### 正式压测-秒杀接口
 
+#### 回答问题
+
+1，问答问：线程组在“正式压测-商品列表接口”中设置的是5000个线程循环10次，沿用到本节。这是”两个用户分别请求50000次“？or ”50000次线程请求中，每个线程随机从csv配置文件中选个用户作为自己然后去请求“？
+
+- 我：根据最后请求总数为10000，第二种猜想的可能性大。（如果各自请求10000次，那么最后监视到的请求数应该为20000）
+- 我答：[参考Jmeter从单用户到多用户并发](https://blog.51cto.com/u_15075523/4037877)，（此文可以在本markdown文件的assets文件夹中搜索`Jmeter从单用户到多用户并发_51CTO博客_jmeter并发.pdf`找到）。
+  - 应该是，“线程组”的“线程数”就等于我们要模拟的用户的个数，这里5000个线程循环10次，正好对应了CSV配置文件（即conf.txt）中保存的5000个用户中的前5000个，每个用户都做10次请求。而且用户数目（5000）>=线程数目（5000），这样CSV配置文件中的用户身份信息也大于等于线程数，这样才能保证**一个循环内**用户线程读取文件时不会重复。
+    - CSV：全称Comma-Separated Values，conf.txt中的内容正是用逗号分开的；一般来说csv文件最好以`.csv`结尾，但是用`.txt`也可以使用。
+    - CSV中是5000个用户；数据库中是5002个用户，因为有两个用户是一开始手动设置的。
+  - 所以简而言之，提问的两个猜想都是错的，本项目就是“点击一次运行，CSV配置文件中存的前5000个用户每个用户会请求10次接口；点击三次运行，相当于5000个用户每个用户请求30次接口”
+
 #### 思路
 
 1，商品列表页不同用户看到的是同一个界面，意义一般，现在来看看秒杀接口的测试。
@@ -4491,7 +4532,7 @@ public class UserUtil {
             user.setNickname("user" + i);
             user.setRegisterDate(new Date());
             user.setSalt("1a2b3c");
-            user.setPassword(MD5Util.inputPassToDBPass("123456", user.getSalt()));
+            user.setPassword(MD5Util.inputPassToDBPass("123456", user.getSalt()));//20230211我：可以看到这里所有人的密码是一样的。再次证实inputPassToDBPass的作用，就是后端在非真实业务场景下想根据明文密码简便拿到DB存的密码；真实业务场景下后端只会拿到前端md5加密过的密文，用不上inputPassToDBPass函数。
             users.add(user);
         }
         System.out.println("create user");
@@ -4633,7 +4674,7 @@ public class UserUtil {
 
 可以发现`return RespBean.success();`中没有把userTicket放到success中再返回，所以导致我们拿到的所有ticket都是null。
 
-- 怀疑之前ubuntu中启动系统，登录后在秒杀页还是显示用户未登录也是这个原因，即无法拿到有效的userticket。
+- 我：怀疑之前ubuntu中启动系统，登录后在秒杀页还是显示用户未登录也是这个原因，即无法拿到有效的userticket。
 
 8，为了解决错误，我们把userTicket放入success，重启zseckill项目：
 
@@ -4697,6 +4738,7 @@ public class UserUtil {
 ![image-20220409235139284](zseckill.assets/image-20220409235139284.png)
 
 - 一定要启用“HTTP cookie管理器”，不然做秒杀的后端接口，拿不到cookie！！
+- 我：请求必须携带cookie，doSeckill接口才能执行秒杀，否则会跳往登录页；所以我们要通过“CSV数据文件设置+httpcookie管理器”设置5000个有cookie的用户。
 
 3，Jmeter的“线程组”中新增一个http请求：
 
@@ -5097,7 +5139,7 @@ OK
 
 ![image-20220413004623876](zseckill.assets/image-20220413004623876.png)
 
-![image-20220413004705585](zseckill.assets/image-20220413004705585.png)
+![image-20230211174444970](zseckill.assets/image-20230211174444970.png)
 
 3，清空redis：
 
@@ -5144,6 +5186,7 @@ OK
   - 现在用户是一直存在redis中并用不失效的，如果这个时候用户user的信息做了变更，如果redis还不做处理的话，那么系统从redis中拿到的就一直是旧的user，会发生数据不一致的问题。
   - 为了保证redis中的数据，和数据库中的数据一样，所以要写本“更新密码”的功能来实现。
   - 最简单的方式实现数据库和redis一致：每次对数据库操作的时候，把对应的redis数据删除；删除redis对应数据后，因为数据库中有最新的数据且redis中没有对应数据，后面再需要调用redis的时候（比如登录）就会从数据库中获取到最新的用户信息。
+    - 我：更新完db后删除redis，是redis缓存一致性策略中的“旁路缓存策略”
 
 4，在UserServiceImpl.java中实现updatePassword方法：
 
@@ -5244,8 +5287,15 @@ OK
 - 输入删掉req resp
 - 不用缓存完整页面了。
 - webcontext处理不需要了，因为页面内容不需要在后端处理
+  - 20230211我：“输入删掉req resp”应该也是这个原因，即不需要webcontext了
+
 - model相关都删除，不需要model传输数据了，现在是用ajax传输数据。
   - [axios和ajax区别](https://blog.csdn.net/qq_42942555/article/details/88400721)
+  - 20230211我：做了一些前后端后，我现在理解“前后端分离/不分离”如下：
+    - 前后端不分离：前端的所有资源存放后端的静态资源里；后端类用@Controller，且方法上没有@ResponseBody；这样接口方法的`return`字段会走视图处理器，渲染出`return XXX;`中名为XXX的前端页面，并把页面传给浏览器，让浏览器展示页面。总之就是前端的展示内容是完全由服务器渲染好了后，直接传送给浏览器展示。
+      - 补充：前后端不分离的时候，也可以用@RestController或@ResponseBody，比如像上图的detail3接口。这是因为detail3接口没有走自动thymeleaf，而是手动thymeleaf把页面构建好了，并让页面以字符串的形式返回给前端；前端收到字符串格式的html后，可以解析并展示页面。如果是走自动thymeleaf模板，那么就要利用Model的AddAtribute功能给html页面提供需要的数据，并且return处就得指定html文件了；这样模板引擎可以把html文件和Model中提供的数据拼接在一起形成页面，并返回给前端。
+    - 前后端分离：前端由vue写，后端由springboot写，后端中没有前端相关的静态资源，前端相关的静态资源都在vue项目自己的文件目录里。后端类用@RestController，或者方法上用@Response。这样后端接口的return就是返回一个json字符串给请求本接口的前端axios函数，由前端根据后端的返回内容判断下一步该怎么做；前端可以rooter到一个前端新页面，前端新页面加载的时候会调用一些钩子函数，钩子函数会做axios请求后端获取页面要的数据，完成页面的初始化。
+    - 还有网上关于[前后端分离与否的对比](https://www.cnblogs.com/liruilong/p/12244925.html)的资料，也可以参考
 
 3，因为现在不是通过model传输数据，而是前端通过ajax请求后端的接口，然后后端返回请求需要的数据；所以新建vo对象用来承载返回给前端的信息：
 
@@ -5292,6 +5342,8 @@ public class DetailVo {
 变成：
 
 ![image-20220417000409011](zseckill.assets/image-20220417000409011.png)
+
+- 20230211我：前后端分离后，前端负责页面的跳转展示，跳转到相应的html文件页面，再向后端请求页面中空缺的个别数据；而不是请求后端接口，等待后端加载好完整的页面传来。
 
 6，因为现在要进行页面静态化，而静态化的文件默认放到static里，所以我们把文件复制到static文件夹中，并重命名为htm结尾：
 
