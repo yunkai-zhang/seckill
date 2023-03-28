@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<!-- saved from url=(0236)https://spring.hhui.top/spring-blog/2020/02/19/200219-SpringBoot%E7%B3%BB%E5%88%97%E6%95%99%E7%A8%8B%E4%B9%8BRabbitMq%E6%B6%88%E6%81%AF%E7%A1%AE%E8%AE%A4%E6%9C%BA%E5%88%B6-%E4%BA%8B%E5%8A%A1%E7%9A%84%E4%BD%BF%E7%94%A8%E5%A7%BF%E5%8A%BF/ -->
+<html lang="zh"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><meta name="generator" content="Hexo 3.9.0">
+    
+    <meta name="360-site-verification" content="7f5acd505d37f2b3cd937c4f83efe5ba">
+    
+    <title>【MQ系列】RabbitMq消息确认机制/事务的使用姿势 | 一灰灰Blog</title>
+    <meta name="360-site-verification" content="7f5acd505d37f2b3cd937c4f83efe5ba">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <meta name="description" content="上一篇介绍了RabbitMq借助RabbitTemplate来发送消息的基本使用姿势，我们知道RabbitMq提供了两种机制，来确保发送端的消息被brocke正确接收，本文将主要介绍，在消息确认和事物两种机制的场景下，发送消息的使用姿势">
+<meta name="keywords" content="RabbitTemplate MessageConverter SpringBoot RabbitMq 消息确认机制 事务机制 Transactional">
+<meta property="og:type" content="article">
+<meta property="og:title" content="【MQ系列】RabbitMq消息确认机制/事务的使用姿势">
+<meta property="og:url" content="http://spring.hhui.top/2020/02/19/200219-SpringBoot系列教程之RabbitMq消息确认机制-事务的使用姿势/index.html">
+<meta property="og:site_name" content="一灰灰Blog">
+<meta property="og:description" content="上一篇介绍了RabbitMq借助RabbitTemplate来发送消息的基本使用姿势，我们知道RabbitMq提供了两种机制，来确保发送端的消息被brocke正确接收，本文将主要介绍，在消息确认和事物两种机制的场景下，发送消息的使用姿势">
+<meta property="og:locale" content="zh-CN">
+<meta property="og:image" content="http://spring.hhui.top/spring-blog/imgs/200219/logo.jpg">
+<meta property="og:updated_time" content="2022-02-21T13:14:34.028Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="【MQ系列】RabbitMq消息确认机制/事务的使用姿势">
+<meta name="twitter:description" content="上一篇介绍了RabbitMq借助RabbitTemplate来发送消息的基本使用姿势，我们知道RabbitMq提供了两种机制，来确保发送端的消息被brocke正确接收，本文将主要介绍，在消息确认和事物两种机制的场景下，发送消息的使用姿势">
+<meta name="twitter:image" content="http://spring.hhui.top/spring-blog/imgs/200219/logo.jpg">
+    
+
+    
+
+    
+        <link rel="icon" href="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/avatar.jpg">
+    
+
+    <link rel="stylesheet" href="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/fontawesome.min.css">
+    <link rel="stylesheet" href="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/fa-brands.min.css">
+    <link rel="stylesheet" href="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/fa-solid.min.css">
+    <link rel="stylesheet" href="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/styles.css">
+    <link rel="stylesheet" href="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/styles(1).css">
+
+    <link rel="stylesheet" href="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/style.css">
+
+    <script src="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/f(4).txt"></script><script src="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/f(5).txt"></script><script src="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/f(6).txt" id="google_shimpl"></script><script src="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/hm.js.下载"></script><script src="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/jquery.min.js.下载"></script>
+    
+    
+        <link rel="stylesheet" href="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/lightgallery.min.css">
+    
+    
+        <link rel="stylesheet" href="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/justifiedGallery.min.css">
+    
+    
+    
+    
+
+
+<!-- 百度站点统计 -->
+<script>
+var _hmt = _hmt || [];
+(function() {
+  var hm = document.createElement("script");
+  hm.src = "https://hm.baidu.com/hm.js?8e114b6720a04ca416840b93e83699de";
+  var s = document.getElementsByTagName("script")[0]; 
+  s.parentNode.insertBefore(hm, s);
+})();
+</script>
+
+<!-- Global site tag (gtag.js) - Google Analytics -->
+<script async="" src="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/js"></script>
+<!-- google analytics -->
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-64SGL334EQ');
+</script>
+<meta http-equiv="origin-trial" content="Az6AfRvI8mo7yiW5fLfj04W21t0ig6aMsGYpIqMTaX60H+b0DkO1uDr+7BrzMcimWzv/X7SXR8jI+uvbV0IJlwYAAACFeyJvcmlnaW4iOiJodHRwczovL2RvdWJsZWNsaWNrLm5ldDo0NDMiLCJmZWF0dXJlIjoiUHJpdmFjeVNhbmRib3hBZHNBUElzIiwiZXhwaXJ5IjoxNjgwNjUyNzk5LCJpc1N1YmRvbWFpbiI6dHJ1ZSwiaXNUaGlyZFBhcnR5Ijp0cnVlfQ=="><meta http-equiv="origin-trial" content="A+USTya+tNvDPaxUgJooz+LaVk5hPoAxpLvSxjogX4Mk8awCTQ9iop6zJ9d5ldgU7WmHqBlnQB41LHHRFxoaBwoAAACLeyJvcmlnaW4iOiJodHRwczovL2dvb2dsZXN5bmRpY2F0aW9uLmNvbTo0NDMiLCJmZWF0dXJlIjoiUHJpdmFjeVNhbmRib3hBZHNBUElzIiwiZXhwaXJ5IjoxNjgwNjUyNzk5LCJpc1N1YmRvbWFpbiI6dHJ1ZSwiaXNUaGlyZFBhcnR5Ijp0cnVlfQ=="><meta http-equiv="origin-trial" content="A7FovoGr67TUBYbnY+Z0IKoJbbmRmB8fCyirUGHavNDtD91CiGyHHSA2hDG9r9T3NjUKFi6egL3RbgTwhhcVDwUAAACLeyJvcmlnaW4iOiJodHRwczovL2dvb2dsZXRhZ3NlcnZpY2VzLmNvbTo0NDMiLCJmZWF0dXJlIjoiUHJpdmFjeVNhbmRib3hBZHNBUElzIiwiZXhwaXJ5IjoxNjgwNjUyNzk5LCJpc1N1YmRvbWFpbiI6dHJ1ZSwiaXNUaGlyZFBhcnR5Ijp0cnVlfQ=="><meta http-equiv="origin-trial" content="Az6AfRvI8mo7yiW5fLfj04W21t0ig6aMsGYpIqMTaX60H+b0DkO1uDr+7BrzMcimWzv/X7SXR8jI+uvbV0IJlwYAAACFeyJvcmlnaW4iOiJodHRwczovL2RvdWJsZWNsaWNrLm5ldDo0NDMiLCJmZWF0dXJlIjoiUHJpdmFjeVNhbmRib3hBZHNBUElzIiwiZXhwaXJ5IjoxNjgwNjUyNzk5LCJpc1N1YmRvbWFpbiI6dHJ1ZSwiaXNUaGlyZFBhcnR5Ijp0cnVlfQ=="><meta http-equiv="origin-trial" content="A+USTya+tNvDPaxUgJooz+LaVk5hPoAxpLvSxjogX4Mk8awCTQ9iop6zJ9d5ldgU7WmHqBlnQB41LHHRFxoaBwoAAACLeyJvcmlnaW4iOiJodHRwczovL2dvb2dsZXN5bmRpY2F0aW9uLmNvbTo0NDMiLCJmZWF0dXJlIjoiUHJpdmFjeVNhbmRib3hBZHNBUElzIiwiZXhwaXJ5IjoxNjgwNjUyNzk5LCJpc1N1YmRvbWFpbiI6dHJ1ZSwiaXNUaGlyZFBhcnR5Ijp0cnVlfQ=="><meta http-equiv="origin-trial" content="A7FovoGr67TUBYbnY+Z0IKoJbbmRmB8fCyirUGHavNDtD91CiGyHHSA2hDG9r9T3NjUKFi6egL3RbgTwhhcVDwUAAACLeyJvcmlnaW4iOiJodHRwczovL2dvb2dsZXRhZ3NlcnZpY2VzLmNvbTo0NDMiLCJmZWF0dXJlIjoiUHJpdmFjeVNhbmRib3hBZHNBUElzIiwiZXhwaXJ5IjoxNjgwNjUyNzk5LCJpc1N1YmRvbWFpbiI6dHJ1ZSwiaXNUaGlyZFBhcnR5Ijp0cnVlfQ=="><link rel="preload" href="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/f(7).txt" as="script"><script type="text/javascript" src="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/f(7).txt"></script><style type="text/css">.MathJax_Hover_Frame {border-radius: .25em; -webkit-border-radius: .25em; -moz-border-radius: .25em; -khtml-border-radius: .25em; box-shadow: 0px 0px 15px #83A; -webkit-box-shadow: 0px 0px 15px #83A; -moz-box-shadow: 0px 0px 15px #83A; -khtml-box-shadow: 0px 0px 15px #83A; border: 1px solid #A6D ! important; display: inline-block; position: absolute}
+.MathJax_Menu_Button .MathJax_Hover_Arrow {position: absolute; cursor: pointer; display: inline-block; border: 2px solid #AAA; border-radius: 4px; -webkit-border-radius: 4px; -moz-border-radius: 4px; -khtml-border-radius: 4px; font-family: 'Courier New',Courier; font-size: 9px; color: #F0F0F0}
+.MathJax_Menu_Button .MathJax_Hover_Arrow span {display: block; background-color: #AAA; border: 1px solid; border-radius: 3px; line-height: 0; padding: 4px}
+.MathJax_Hover_Arrow:hover {color: white!important; border: 2px solid #CCC!important}
+.MathJax_Hover_Arrow:hover span {background-color: #CCC!important}
+</style><style type="text/css">#MathJax_About {position: fixed; left: 50%; width: auto; text-align: center; border: 3px outset; padding: 1em 2em; background-color: #DDDDDD; color: black; cursor: default; font-family: message-box; font-size: 120%; font-style: normal; text-indent: 0; text-transform: none; line-height: normal; letter-spacing: normal; word-spacing: normal; word-wrap: normal; white-space: nowrap; float: none; z-index: 201; border-radius: 15px; -webkit-border-radius: 15px; -moz-border-radius: 15px; -khtml-border-radius: 15px; box-shadow: 0px 10px 20px #808080; -webkit-box-shadow: 0px 10px 20px #808080; -moz-box-shadow: 0px 10px 20px #808080; -khtml-box-shadow: 0px 10px 20px #808080; filter: progid:DXImageTransform.Microsoft.dropshadow(OffX=2, OffY=2, Color='gray', Positive='true')}
+#MathJax_About.MathJax_MousePost {outline: none}
+.MathJax_Menu {position: absolute; background-color: white; color: black; width: auto; padding: 2px; border: 1px solid #CCCCCC; margin: 0; cursor: default; font: menu; text-align: left; text-indent: 0; text-transform: none; line-height: normal; letter-spacing: normal; word-spacing: normal; word-wrap: normal; white-space: nowrap; float: none; z-index: 201; box-shadow: 0px 10px 20px #808080; -webkit-box-shadow: 0px 10px 20px #808080; -moz-box-shadow: 0px 10px 20px #808080; -khtml-box-shadow: 0px 10px 20px #808080; filter: progid:DXImageTransform.Microsoft.dropshadow(OffX=2, OffY=2, Color='gray', Positive='true')}
+.MathJax_MenuItem {padding: 2px 2em; background: transparent}
+.MathJax_MenuArrow {position: absolute; right: .5em; padding-top: .25em; color: #666666; font-size: .75em}
+.MathJax_MenuActive .MathJax_MenuArrow {color: white}
+.MathJax_MenuArrow.RTL {left: .5em; right: auto}
+.MathJax_MenuCheck {position: absolute; left: .7em}
+.MathJax_MenuCheck.RTL {right: .7em; left: auto}
+.MathJax_MenuRadioCheck {position: absolute; left: 1em}
+.MathJax_MenuRadioCheck.RTL {right: 1em; left: auto}
+.MathJax_MenuLabel {padding: 2px 2em 4px 1.33em; font-style: italic}
+.MathJax_MenuRule {border-top: 1px solid #CCCCCC; margin: 4px 1px 0px}
+.MathJax_MenuDisabled {color: GrayText}
+.MathJax_MenuActive {background-color: Highlight; color: HighlightText}
+.MathJax_MenuDisabled:focus, .MathJax_MenuLabel:focus {background-color: #E8E8E8}
+.MathJax_ContextMenu:focus {outline: none}
+.MathJax_ContextMenu .MathJax_MenuItem:focus {outline: none}
+#MathJax_AboutClose {top: .2em; right: .2em}
+.MathJax_Menu .MathJax_MenuClose {top: -10px; left: -10px}
+.MathJax_MenuClose {position: absolute; cursor: pointer; display: inline-block; border: 2px solid #AAA; border-radius: 18px; -webkit-border-radius: 18px; -moz-border-radius: 18px; -khtml-border-radius: 18px; font-family: 'Courier New',Courier; font-size: 24px; color: #F0F0F0}
+.MathJax_MenuClose span {display: block; background-color: #AAA; border: 1.5px solid; border-radius: 18px; -webkit-border-radius: 18px; -moz-border-radius: 18px; -khtml-border-radius: 18px; line-height: 0; padding: 8px 0 6px}
+.MathJax_MenuClose:hover {color: white!important; border: 2px solid #CCC!important}
+.MathJax_MenuClose:hover span {background-color: #CCC!important}
+.MathJax_MenuClose:hover:focus {outline: none}
+</style><style type="text/css">.MathJax_Preview .MJXf-math {color: inherit!important}
+</style><style type="text/css">.MJX_Assistive_MathML {position: absolute!important; top: 0; left: 0; clip: rect(1px, 1px, 1px, 1px); padding: 1px 0 0 0!important; border: 0!important; height: 1px!important; width: 1px!important; overflow: hidden!important; display: block!important; -webkit-touch-callout: none; -webkit-user-select: none; -khtml-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none}
+.MJX_Assistive_MathML.MJX_Assistive_MathML_Block {width: 100%!important}
+</style><style type="text/css">#MathJax_Zoom {position: absolute; background-color: #F0F0F0; overflow: auto; display: block; z-index: 301; padding: .5em; border: 1px solid black; margin: 0; font-weight: normal; font-style: normal; text-align: left; text-indent: 0; text-transform: none; line-height: normal; letter-spacing: normal; word-spacing: normal; word-wrap: normal; white-space: nowrap; float: none; -webkit-box-sizing: content-box; -moz-box-sizing: content-box; box-sizing: content-box; box-shadow: 5px 5px 15px #AAAAAA; -webkit-box-shadow: 5px 5px 15px #AAAAAA; -moz-box-shadow: 5px 5px 15px #AAAAAA; -khtml-box-shadow: 5px 5px 15px #AAAAAA; filter: progid:DXImageTransform.Microsoft.dropshadow(OffX=2, OffY=2, Color='gray', Positive='true')}
+#MathJax_ZoomOverlay {position: absolute; left: 0; top: 0; z-index: 300; display: inline-block; width: 100%; height: 100%; border: 0; padding: 0; margin: 0; background-color: white; opacity: 0; filter: alpha(opacity=0)}
+#MathJax_ZoomFrame {position: relative; display: inline-block; height: 0; width: 0}
+#MathJax_ZoomEventTrap {position: absolute; left: 0; top: 0; z-index: 302; display: inline-block; border: 0; padding: 0; margin: 0; background-color: white; opacity: 0; filter: alpha(opacity=0)}
+</style><style type="text/css">.MathJax_Preview {color: #888}
+#MathJax_Message {position: fixed; left: 1em; bottom: 1.5em; background-color: #E6E6E6; border: 1px solid #959595; margin: 0px; padding: 2px 8px; z-index: 102; color: black; font-size: 80%; width: auto; white-space: nowrap}
+#MathJax_MSIE_Frame {position: absolute; top: 0; left: 0; width: 0px; z-index: 101; border: 0px; margin: 0px; padding: 0px}
+.MathJax_Error {color: #CC0000; font-style: italic}
+</style><style type="text/css">.MJXp-script {font-size: .8em}
+.MJXp-right {-webkit-transform-origin: right; -moz-transform-origin: right; -ms-transform-origin: right; -o-transform-origin: right; transform-origin: right}
+.MJXp-bold {font-weight: bold}
+.MJXp-italic {font-style: italic}
+.MJXp-scr {font-family: MathJax_Script,'Times New Roman',Times,STIXGeneral,serif}
+.MJXp-frak {font-family: MathJax_Fraktur,'Times New Roman',Times,STIXGeneral,serif}
+.MJXp-sf {font-family: MathJax_SansSerif,'Times New Roman',Times,STIXGeneral,serif}
+.MJXp-cal {font-family: MathJax_Caligraphic,'Times New Roman',Times,STIXGeneral,serif}
+.MJXp-mono {font-family: MathJax_Typewriter,'Times New Roman',Times,STIXGeneral,serif}
+.MJXp-largeop {font-size: 150%}
+.MJXp-largeop.MJXp-int {vertical-align: -.2em}
+.MJXp-math {display: inline-block; line-height: 1.2; text-indent: 0; font-family: 'Times New Roman',Times,STIXGeneral,serif; white-space: nowrap; border-collapse: collapse}
+.MJXp-display {display: block; text-align: center; margin: 1em 0}
+.MJXp-math span {display: inline-block}
+.MJXp-box {display: block!important; text-align: center}
+.MJXp-box:after {content: " "}
+.MJXp-rule {display: block!important; margin-top: .1em}
+.MJXp-char {display: block!important}
+.MJXp-mo {margin: 0 .15em}
+.MJXp-mfrac {margin: 0 .125em; vertical-align: .25em}
+.MJXp-denom {display: inline-table!important; width: 100%}
+.MJXp-denom > * {display: table-row!important}
+.MJXp-surd {vertical-align: top}
+.MJXp-surd > * {display: block!important}
+.MJXp-script-box > *  {display: table!important; height: 50%}
+.MJXp-script-box > * > * {display: table-cell!important; vertical-align: top}
+.MJXp-script-box > *:last-child > * {vertical-align: bottom}
+.MJXp-script-box > * > * > * {display: block!important}
+.MJXp-mphantom {visibility: hidden}
+.MJXp-munderover {display: inline-table!important}
+.MJXp-over {display: inline-block!important; text-align: center}
+.MJXp-over > * {display: block!important}
+.MJXp-munderover > * {display: table-row!important}
+.MJXp-mtable {vertical-align: .25em; margin: 0 .125em}
+.MJXp-mtable > * {display: inline-table!important; vertical-align: middle}
+.MJXp-mtr {display: table-row!important}
+.MJXp-mtd {display: table-cell!important; text-align: center; padding: .5em 0 0 .5em}
+.MJXp-mtr > .MJXp-mtd:first-child {padding-left: 0}
+.MJXp-mtr:first-child > .MJXp-mtd {padding-top: 0}
+.MJXp-mlabeledtr {display: table-row!important}
+.MJXp-mlabeledtr > .MJXp-mtd:first-child {padding-left: 0}
+.MJXp-mlabeledtr:first-child > .MJXp-mtd {padding-top: 0}
+.MJXp-merror {background-color: #FFFF88; color: #CC0000; border: 1px solid #CC0000; padding: 1px 3px; font-style: normal; font-size: 90%}
+.MJXp-scale0 {-webkit-transform: scaleX(.0); -moz-transform: scaleX(.0); -ms-transform: scaleX(.0); -o-transform: scaleX(.0); transform: scaleX(.0)}
+.MJXp-scale1 {-webkit-transform: scaleX(.1); -moz-transform: scaleX(.1); -ms-transform: scaleX(.1); -o-transform: scaleX(.1); transform: scaleX(.1)}
+.MJXp-scale2 {-webkit-transform: scaleX(.2); -moz-transform: scaleX(.2); -ms-transform: scaleX(.2); -o-transform: scaleX(.2); transform: scaleX(.2)}
+.MJXp-scale3 {-webkit-transform: scaleX(.3); -moz-transform: scaleX(.3); -ms-transform: scaleX(.3); -o-transform: scaleX(.3); transform: scaleX(.3)}
+.MJXp-scale4 {-webkit-transform: scaleX(.4); -moz-transform: scaleX(.4); -ms-transform: scaleX(.4); -o-transform: scaleX(.4); transform: scaleX(.4)}
+.MJXp-scale5 {-webkit-transform: scaleX(.5); -moz-transform: scaleX(.5); -ms-transform: scaleX(.5); -o-transform: scaleX(.5); transform: scaleX(.5)}
+.MJXp-scale6 {-webkit-transform: scaleX(.6); -moz-transform: scaleX(.6); -ms-transform: scaleX(.6); -o-transform: scaleX(.6); transform: scaleX(.6)}
+.MJXp-scale7 {-webkit-transform: scaleX(.7); -moz-transform: scaleX(.7); -ms-transform: scaleX(.7); -o-transform: scaleX(.7); transform: scaleX(.7)}
+.MJXp-scale8 {-webkit-transform: scaleX(.8); -moz-transform: scaleX(.8); -ms-transform: scaleX(.8); -o-transform: scaleX(.8); transform: scaleX(.8)}
+.MJXp-scale9 {-webkit-transform: scaleX(.9); -moz-transform: scaleX(.9); -ms-transform: scaleX(.9); -o-transform: scaleX(.9); transform: scaleX(.9)}
+.MathJax_PHTML .noError {vertical-align: ; font-size: 90%; text-align: left; color: black; padding: 1px 3px; border: 1px solid}
+</style></head>
+<body style="padding: 0px 0px 154px;"><div id="MathJax_Message" style="display: none;"></div>
+
+    <div id="container" style="height: auto !important;">
+        <header id="header">
+    <div id="header-main" class="header-inner">
+        <div class="outer">
+            <a href="https://spring.hhui.top/spring-blog/" id="logo">
+                <i class="logo"></i>
+                <span class="site-title">一灰灰Blog</span>
+            </a>
+            <nav id="main-nav">
+                
+                    <a class="main-nav-link" href="https://spring.hhui.top/spring-blog/">首页</a>
+                
+                    <a class="main-nav-link" href="https://spring.hhui.top/spring-blog/archives">归档</a>
+                
+                    <a class="main-nav-link" href="https://spring.hhui.top/spring-blog/SpringBoot">SpringBoot</a>
+                
+                    <a class="main-nav-link" href="https://spring.hhui.top/spring-blog/SpringCloud">SpringCloud</a>
+                
+                    <a class="main-nav-link" href="https://spring.hhui.top/spring-blog/SpringSecurity">SpringSecurity</a>
+                
+                    <a class="main-nav-link" href="https://blog.hhui.top/">一灰灰Blog</a>
+                
+                    <a class="main-nav-link" href="https://tool.hhui.top/">神奇百宝箱</a>
+                
+                    <a class="main-nav-link" href="https://spring.hhui.top/spring-blog/about">关于</a>
+                
+            </nav>
+            
+                
+                <nav id="sub-nav">
+                    <div class="profile" id="profile-nav">
+                        <a id="profile-anchor" href="javascript:;">
+                            <img class="avatar" src="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/avatar.jpg">
+                            <i class="fas fa-caret-down"></i>
+                        </a>
+                    </div>
+                </nav>
+            
+            <div id="search-form-wrap">
+
+    <form class="search-form">
+        <input type="text" class="ins-search-input search-form-input" placeholder="搜索">
+        <button type="submit" class="search-form-submit"></button>
+    </form>
+    
+<script>
+(function (window) {
+    var INSIGHT_CONFIG = {
+        TRANSLATION: {
+            POSTS: '文章',
+            PAGES: '页面',
+            CATEGORIES: '分类',
+            TAGS: '标签',
+            UNTITLED: '(未命名)',
+        },
+        ROOT_URL: '/spring-blog/',
+        CONTENT_URL: '/spring-blog/content.json',
+    };
+    window.INSIGHT_CONFIG = INSIGHT_CONFIG;
+})(window);
+</script>
+<script src="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/insight.js.下载"></script>
+
+</div>
+        </div>
+    </div>
+    <div id="main-nav-mobile" class="header-sub header-inner">
+        <table class="menu outer">
+            <tbody><tr>
+                
+                    <td><a class="main-nav-link" href="https://spring.hhui.top/spring-blog/">首页</a></td>
+                
+                    <td><a class="main-nav-link" href="https://spring.hhui.top/spring-blog/archives">归档</a></td>
+                
+                    <td><a class="main-nav-link" href="https://spring.hhui.top/spring-blog/SpringBoot">SpringBoot</a></td>
+                
+                    <td><a class="main-nav-link" href="https://spring.hhui.top/spring-blog/SpringCloud">SpringCloud</a></td>
+                
+                    <td><a class="main-nav-link" href="https://spring.hhui.top/spring-blog/SpringSecurity">SpringSecurity</a></td>
+                
+                    <td><a class="main-nav-link" href="https://blog.hhui.top/">一灰灰Blog</a></td>
+                
+                    <td><a class="main-nav-link" href="https://tool.hhui.top/">神奇百宝箱</a></td>
+                
+                    <td><a class="main-nav-link" href="https://spring.hhui.top/spring-blog/about">关于</a></td>
+                
+                <td>
+                    
+    <div class="search-form">
+        <input type="text" class="ins-search-input search-form-input" placeholder="搜索">
+    </div>
+
+                </td>
+            </tr>
+        </tbody></table>
+    </div>
+</header>
+
+        <div class="outer" style="height: auto !important;">
+            
+                
+
+<aside id="profile" class="" style="height: auto !important;">
+    <div class="inner profile-inner">
+        <div class="base-info profile-block">
+            <img id="avatar" src="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/avatar.jpg">
+            <h2 id="name">一灰灰Blog</h2>
+            <h3 id="title">伪全栈*真后端(求👍，求🌟  求👋 )</h3>
+            <span id="location"><i class="fas fa-map-marker-alt" style="padding-right: 5px"></i>Wuhan, China</span>
+            <a id="follow" target="_blank" href="https://github.com/liuyueyi/">关注我</a>
+        </div>
+        <div class="article-info profile-block">
+            <div class="article-info-block">
+                218
+                <span>文章</span>
+            </div>
+            <div class="article-info-block">
+                81
+                <span>标签</span>
+            </div>
+        </div>
+        
+        <div class="profile-block social-links">
+            <table>
+                <tbody><tr>
+                    
+                    
+                    <td>
+                        <a href="http://github.com/liuyueyi/" target="_blank" title="Github" class="tooltip">
+                            <i class="fab fa-github"></i>
+                        </a>
+                    </td>
+                    
+                    <td>
+                        <a href="https://gitee.com/liuyueyi" target="_blank" title="码云" class="tooltip">
+                            <i class="fab fa-gg"></i>
+                        </a>
+                    </td>
+                    
+                    <td>
+                        <a href="https://spring.hhui.top/spring-blog/atom.xml" target="_blank" title="RSS" class="tooltip">
+                            <i class="fab fa-rss fa"></i>
+                        </a>
+                    </td>
+                    
+                    <td>
+                        <a href="https://weibo.com/p/1005052169825577/home" target="_blank" title="微博" class="tooltip">
+                            <i class="fab fa-weibo"></i>
+                        </a>
+                    </td>
+                    
+                    <td>
+                        <a href="https://s10.mogucdn.com/mlcdn/c45406/171229_1cgld3igbelkbc70cd8af1j3809kb_150x150.jpg" target="_blank" title="微信公众号" class="tooltip">
+                            <i class="fab fa-weixin"></i>
+                        </a>
+                    </td>
+                    
+                    <td>
+                        <a href="https://spring.hhui.top/spring-blog/about" target="_blank" title="3302797840" class="tooltip">
+                            <i class="fab fa-qq"></i>
+                        </a>
+                    </td>
+                    
+                </tr>
+            </tbody></table>
+        </div>
+        
+        <div class="profile-block social-links" style="display: none">
+            <table>
+            <tbody><tr>
+                <td>
+                    <img src="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/180527_09cafb94a5g3lbd5ik6ke0hf649ff_800x798.jpg" style="width:98%">
+                </td>
+                <td>
+                    <img src="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/180104_0e6afl33b23lacj6ji2d7d060aiak_798x800.png" style="width:98%">
+                </td>
+            </tr>
+            </tbody></table>
+        </div>
+    </div>
+
+
+    <div class="inner profile-inner">
+        <!-- 终点阅读 -->
+        <div class="base-info profile-block">
+            <img style="width: 100%; height: 100%" src="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/wx.jpg">
+            <h2 id="name">一灰灰blog</h2>
+            <h3 id="title">关注公众号，回复"加群"，即刻加入技术交流群（Python,Java,Golang,微服务,高并发,DDD各技术均有涉猎，欢迎各路小伙伴一起来耍）</h3>
+        </div>
+    </div>
+
+
+    <div class="inner profile-inner">
+        <!-- 终点阅读 -->
+        <div class="base-info profile-block">
+            <a href="https://play.google.com/store/apps/details?id=com.yhh.zhongdian" target="_blank">
+                <img id="avatar" src="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/zdlogo.png">
+                <h2 id="name">终点看书APP</h2>
+                <h3 id="title">最热最全的免费小说阅读器，全网精品小说，火热新书，追书神器，阅读必备，百万小说爱好者首选阅读器</h3>
+            </a>
+            <div>
+                <a id="follow" href="https://play.google.com/store/apps/details?id=com.yhh.zhongdian" target="_blank">
+                <i class="fab fa-google-play">
+                    Google Play
+                </i></a>
+                <a id="follow" href="http://img.hhui.top/zd/apk/%E7%BB%88%E7%82%B9%E7%9C%8B%E4%B9%A6.apk" target="_blank">
+                    <i class="fab fa-android">
+                    Android
+                </i>
+                </a>
+            </div>
+        </div>
+    </div>
+    
+
+    <div class="inner profile-inner">
+        <script async="" src="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/f(8).txt"></script>
+        <!-- Spring_豆腐块 -->
+        <ins class="adsbygoogle" style="display: block; height: 280px;" data-ad-client="ca-pub-5592000528061748" data-ad-slot="1949720423" data-ad-format="auto" data-full-width-responsive="true" data-adsbygoogle-status="done" data-ad-status="filled"><div id="aswift_1_host" tabindex="0" title="Advertisement" aria-label="Advertisement" style="border: none; height: 280px; width: 344px; margin: 0px; padding: 0px; position: relative; visibility: visible; background-color: transparent; display: inline-block; overflow: visible;"><iframe id="aswift_1" name="aswift_1" style="left:0;position:absolute;top:0;border:0;width:344px;height:280px;" sandbox="allow-forms allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts allow-top-navigation-by-user-activation" width="344" height="280" frameborder="0" marginwidth="0" marginheight="0" vspace="0" hspace="0" allowtransparency="true" scrolling="no" src="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/ads.html" data-google-container-id="a!2" data-google-query-id="CMDaiM7Swv0CFSftTAIdxGIFNg" data-load-complete="true"></iframe></div></ins>
+        <script>
+             (adsbygoogle = window.adsbygoogle || []).push({});
+        </script>
+    </div>
+
+    
+    <div class="widget-wrap">
+        <h3 class="widget-title">最新文章</h3>
+        <div class="widget">
+            <ul id="recent-post" class="">
+                
+                    <li>
+                        
+                        <div class="item-thumbnail">
+                            <a href="https://spring.hhui.top/spring-blog/2022/12/21/221221-SpringBoot%E7%B3%BB%E5%88%97%E4%B9%8B%E6%95%B0%E6%8D%AE%E5%BA%93%E5%88%9D%E5%A7%8B%E5%8C%96-DataSourceInitializer%E6%96%B9%E5%BC%8F/" class="thumbnail">
+    
+    
+        <span style="background-image:url(/spring-blog/imgs/221221/logo3.jpg)" alt="【DB系列】数据库初始化-DataSourceInitializer方式" class="thumbnail-image"></span>
+    
+</a>
+
+                        </div>
+                        
+                        <div class="item-inner">
+                            <p class="item-category"><a class="article-category-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/">SpringBoot</a><i class="fas fa-angle-right"></i><a class="article-category-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/DB%E7%B3%BB%E5%88%97/">DB系列</a></p>
+                            <p class="item-title"><a href="https://spring.hhui.top/spring-blog/2022/12/21/221221-SpringBoot%E7%B3%BB%E5%88%97%E4%B9%8B%E6%95%B0%E6%8D%AE%E5%BA%93%E5%88%9D%E5%A7%8B%E5%8C%96-DataSourceInitializer%E6%96%B9%E5%BC%8F/" class="title">【DB系列】数据库初始化-DataSourceInitializer方式</a></p>
+                            <p class="item-date"><time datetime="2022-12-21T03:52:03.000Z" itemprop="datePublished">2022-12-21</time></p>
+                        </div>
+                    </li>
+                
+                    <li>
+                        
+                        <div class="item-thumbnail">
+                            <a href="https://spring.hhui.top/spring-blog/2022/12/21/221221-SpringBoot%E7%B3%BB%E5%88%97%E4%B9%8B%E6%95%B0%E6%8D%AE%E5%BA%93%E5%88%9D%E5%A7%8B%E5%8C%96-jpa%E9%85%8D%E7%BD%AE%E6%96%B9%E5%BC%8F/" class="thumbnail">
+    
+    
+        <span style="background-image:url(/spring-blog/imgs/221221/logo2.jpg)" alt="【DB系列】数据库初始化-jpa配置方式" class="thumbnail-image"></span>
+    
+</a>
+
+                        </div>
+                        
+                        <div class="item-inner">
+                            <p class="item-category"><a class="article-category-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/">SpringBoot</a><i class="fas fa-angle-right"></i><a class="article-category-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/DB%E7%B3%BB%E5%88%97/">DB系列</a></p>
+                            <p class="item-title"><a href="https://spring.hhui.top/spring-blog/2022/12/21/221221-SpringBoot%E7%B3%BB%E5%88%97%E4%B9%8B%E6%95%B0%E6%8D%AE%E5%BA%93%E5%88%9D%E5%A7%8B%E5%8C%96-jpa%E9%85%8D%E7%BD%AE%E6%96%B9%E5%BC%8F/" class="title">【DB系列】数据库初始化-jpa配置方式</a></p>
+                            <p class="item-date"><time datetime="2022-12-21T02:59:32.000Z" itemprop="datePublished">2022-12-21</time></p>
+                        </div>
+                    </li>
+                
+                    <li>
+                        
+                        <div class="item-thumbnail">
+                            <a href="https://spring.hhui.top/spring-blog/2022/12/21/221221-SpringBoot%E7%B3%BB%E5%88%97%E4%B9%8B%E6%95%B0%E6%8D%AE%E5%BA%93%E5%88%9D%E5%A7%8B%E5%8C%96-datasource%E9%85%8D%E7%BD%AE%E6%96%B9%E5%BC%8F/" class="thumbnail">
+    
+    
+        <span style="background-image:url(/spring-blog/imgs/221221/logo.jpg)" alt="【DB系列】数据库初始化-datasource配置方式" class="thumbnail-image"></span>
+    
+</a>
+
+                        </div>
+                        
+                        <div class="item-inner">
+                            <p class="item-category"><a class="article-category-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/">SpringBoot</a><i class="fas fa-angle-right"></i><a class="article-category-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/DB%E7%B3%BB%E5%88%97/">DB系列</a></p>
+                            <p class="item-title"><a href="https://spring.hhui.top/spring-blog/2022/12/21/221221-SpringBoot%E7%B3%BB%E5%88%97%E4%B9%8B%E6%95%B0%E6%8D%AE%E5%BA%93%E5%88%9D%E5%A7%8B%E5%8C%96-datasource%E9%85%8D%E7%BD%AE%E6%96%B9%E5%BC%8F/" class="title">【DB系列】数据库初始化-datasource配置方式</a></p>
+                            <p class="item-date"><time datetime="2022-12-21T01:57:22.000Z" itemprop="datePublished">2022-12-21</time></p>
+                        </div>
+                    </li>
+                
+                    <li>
+                        
+                        <div class="item-thumbnail">
+                            <a href="https://spring.hhui.top/spring-blog/2022/10/26/221026-Spring%E6%89%A9%E5%B1%95%E7%82%B9%E4%B9%8B%E8%87%AA%E5%AE%9A%E4%B9%89bean%E6%B3%A8%E5%86%8C/" class="thumbnail">
+    
+    
+        <span style="background-image:url(/spring-blog/imgs/221026/logo.jpg)" alt="【扩展点】 自定义bean注册扩展机制BeanDefinitionRegistryPostProcessor" class="thumbnail-image"></span>
+    
+</a>
+
+                        </div>
+                        
+                        <div class="item-inner">
+                            <p class="item-category"><a class="article-category-link" href="https://spring.hhui.top/spring-blog/categories/Spring%E6%BA%90%E7%A0%81/">Spring源码</a><i class="fas fa-angle-right"></i><a class="article-category-link" href="https://spring.hhui.top/spring-blog/categories/Spring%E6%BA%90%E7%A0%81/%E6%89%A9%E5%B1%95%E7%82%B9/">扩展点</a></p>
+                            <p class="item-title"><a href="https://spring.hhui.top/spring-blog/2022/10/26/221026-Spring%E6%89%A9%E5%B1%95%E7%82%B9%E4%B9%8B%E8%87%AA%E5%AE%9A%E4%B9%89bean%E6%B3%A8%E5%86%8C/" class="title">【扩展点】 自定义bean注册扩展机制BeanDefinitionRegistryPostProcessor</a></p>
+                            <p class="item-date"><time datetime="2022-10-26T06:45:41.000Z" itemprop="datePublished">2022-10-26</time></p>
+                        </div>
+                    </li>
+                
+                    <li>
+                        
+                        <div class="item-thumbnail">
+                            <a href="https://spring.hhui.top/spring-blog/2022/09/27/220927-Spring%E6%89%A9%E5%B1%95%E4%B9%8B%E5%AE%B9%E5%99%A8%E5%88%B7%E6%96%B0%E5%89%8D%E5%9B%9E%E8%B0%83ApplicationContextInitializer/" class="thumbnail">
+    
+    
+        <span style="background-image:url(/spring-blog/imgs/220927/logo.jpg)" alt="【扩展点】 容器刷新前回调ApplicationContextInitializer" class="thumbnail-image"></span>
+    
+</a>
+
+                        </div>
+                        
+                        <div class="item-inner">
+                            <p class="item-category"><a class="article-category-link" href="https://spring.hhui.top/spring-blog/categories/Spring%E6%BA%90%E7%A0%81/">Spring源码</a><i class="fas fa-angle-right"></i><a class="article-category-link" href="https://spring.hhui.top/spring-blog/categories/Spring%E6%BA%90%E7%A0%81/%E6%89%A9%E5%B1%95%E7%82%B9/">扩展点</a></p>
+                            <p class="item-title"><a href="https://spring.hhui.top/spring-blog/2022/09/27/220927-Spring%E6%89%A9%E5%B1%95%E4%B9%8B%E5%AE%B9%E5%99%A8%E5%88%B7%E6%96%B0%E5%89%8D%E5%9B%9E%E8%B0%83ApplicationContextInitializer/" class="title">【扩展点】 容器刷新前回调ApplicationContextInitializer</a></p>
+                            <p class="item-date"><time datetime="2022-09-27T11:26:11.000Z" itemprop="datePublished">2022-09-27</time></p>
+                        </div>
+                    </li>
+                
+            </ul>
+        </div>
+    </div>
+
+</aside>
+
+            
+            <section id="main"><article id="post-200219-SpringBoot系列教程之RabbitMq消息确认机制-事务的使用姿势" class="article article-type-post" itemscope="" itemprop="blogPost">
+    <div class="article-inner">
+        
+            
+	
+		<img src="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/logo.jpg" class="article-banner">
+	
+
+
+
+        
+        
+            <header class="article-header">
+                
+    
+        <h1 class="article-title" itemprop="name">
+            【MQ系列】RabbitMq消息确认机制/事务的使用姿势
+        </h1>
+    
+
+                
+                    <div class="article-meta">
+                        
+    <div class="article-date">
+        <i class="fas fa-calendar-alt"></i>
+        <a href="https://spring.hhui.top/spring-blog/2020/02/19/200219-SpringBoot%E7%B3%BB%E5%88%97%E6%95%99%E7%A8%8B%E4%B9%8BRabbitMq%E6%B6%88%E6%81%AF%E7%A1%AE%E8%AE%A4%E6%9C%BA%E5%88%B6-%E4%BA%8B%E5%8A%A1%E7%9A%84%E4%BD%BF%E7%94%A8%E5%A7%BF%E5%8A%BF/">
+            <time datetime="2020-02-19T03:30:53.000Z" itemprop="datePublished">2020-02-19</time>
+        </a>
+    </div>
+
+
+                        
+    <div class="article-category">
+    	<i class="fas fa-folder"></i>
+        <a class="article-category-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/">SpringBoot</a><i class="fas fa-angle-right"></i><a class="article-category-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/MQ%E7%B3%BB%E5%88%97/">MQ系列</a><i class="fas fa-angle-right"></i><a class="article-category-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/MQ%E7%B3%BB%E5%88%97/RabbitMq/">RabbitMq</a>
+    </div>
+
+                        
+    <div class="article-tag">
+        <i class="fas fa-tag"></i>
+        <a class="tag-link" href="https://spring.hhui.top/spring-blog/tags/RabbitMq/">RabbitMq</a>
+    </div>
+
+                        
+                        | <span class="fas fa-hand-point-up" id="artical_visit_count"><span class="visit_post_cnt"> ( pv : 2461 &nbsp;| uv : 1818 &nbsp;| hot : 2751&nbsp;)</span></span>
+                        
+                    </div>
+                
+            </header>
+        
+        
+        <div class="article-entry" itemprop="articleBody" lg-uid="lg0">
+        
+            
+                <!-- 文章详情页 -->
+                <div id="toc" class="toc-article">
+                <strong class="toc-title">文章目录</strong>
+                    <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="https://spring.hhui.top/spring-blog/2020/02/19/200219-SpringBoot%E7%B3%BB%E5%88%97%E6%95%99%E7%A8%8B%E4%B9%8BRabbitMq%E6%B6%88%E6%81%AF%E7%A1%AE%E8%AE%A4%E6%9C%BA%E5%88%B6-%E4%BA%8B%E5%8A%A1%E7%9A%84%E4%BD%BF%E7%94%A8%E5%A7%BF%E5%8A%BF/#I-%E9%85%8D%E7%BD%AE"><span class="toc-text">I. 配置</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="https://spring.hhui.top/spring-blog/2020/02/19/200219-SpringBoot%E7%B3%BB%E5%88%97%E6%95%99%E7%A8%8B%E4%B9%8BRabbitMq%E6%B6%88%E6%81%AF%E7%A1%AE%E8%AE%A4%E6%9C%BA%E5%88%B6-%E4%BA%8B%E5%8A%A1%E7%9A%84%E4%BD%BF%E7%94%A8%E5%A7%BF%E5%8A%BF/#II-%E6%B6%88%E6%81%AF%E7%A1%AE%E8%AE%A4%E6%9C%BA%E5%88%B6"><span class="toc-text">II. 消息确认机制</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="https://spring.hhui.top/spring-blog/2020/02/19/200219-SpringBoot%E7%B3%BB%E5%88%97%E6%95%99%E7%A8%8B%E4%B9%8BRabbitMq%E6%B6%88%E6%81%AF%E7%A1%AE%E8%AE%A4%E6%9C%BA%E5%88%B6-%E4%BA%8B%E5%8A%A1%E7%9A%84%E4%BD%BF%E7%94%A8%E5%A7%BF%E5%8A%BF/#1-%E5%AE%9A%E4%B9%89"><span class="toc-text">1. 定义</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="https://spring.hhui.top/spring-blog/2020/02/19/200219-SpringBoot%E7%B3%BB%E5%88%97%E6%95%99%E7%A8%8B%E4%B9%8BRabbitMq%E6%B6%88%E6%81%AF%E7%A1%AE%E8%AE%A4%E6%9C%BA%E5%88%B6-%E4%BA%8B%E5%8A%A1%E7%9A%84%E4%BD%BF%E7%94%A8%E5%A7%BF%E5%8A%BF/#2-%E5%9F%BA%E6%9C%AC%E4%BD%BF%E7%94%A8case"><span class="toc-text">2. 基本使用case</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="https://spring.hhui.top/spring-blog/2020/02/19/200219-SpringBoot%E7%B3%BB%E5%88%97%E6%95%99%E7%A8%8B%E4%B9%8BRabbitMq%E6%B6%88%E6%81%AF%E7%A1%AE%E8%AE%A4%E6%9C%BA%E5%88%B6-%E4%BA%8B%E5%8A%A1%E7%9A%84%E4%BD%BF%E7%94%A8%E5%A7%BF%E5%8A%BF/#3-%E6%89%8B%E5%8A%A8%E9%85%8D%E7%BD%AE%E6%96%B9%E5%BC%8F"><span class="toc-text">3. 手动配置方式</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="https://spring.hhui.top/spring-blog/2020/02/19/200219-SpringBoot%E7%B3%BB%E5%88%97%E6%95%99%E7%A8%8B%E4%B9%8BRabbitMq%E6%B6%88%E6%81%AF%E7%A1%AE%E8%AE%A4%E6%9C%BA%E5%88%B6-%E4%BA%8B%E5%8A%A1%E7%9A%84%E4%BD%BF%E7%94%A8%E5%A7%BF%E5%8A%BF/#III-%E4%BA%8B%E5%8A%A1%E6%9C%BA%E5%88%B6"><span class="toc-text">III. 事务机制</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="https://spring.hhui.top/spring-blog/2020/02/19/200219-SpringBoot%E7%B3%BB%E5%88%97%E6%95%99%E7%A8%8B%E4%B9%8BRabbitMq%E6%B6%88%E6%81%AF%E7%A1%AE%E8%AE%A4%E6%9C%BA%E5%88%B6-%E4%BA%8B%E5%8A%A1%E7%9A%84%E4%BD%BF%E7%94%A8%E5%A7%BF%E5%8A%BF/#1-%E4%BA%8B%E5%8A%A1%E4%BD%BF%E7%94%A8%E6%96%B9%E5%BC%8F"><span class="toc-text">1. 事务使用方式</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="https://spring.hhui.top/spring-blog/2020/02/19/200219-SpringBoot%E7%B3%BB%E5%88%97%E6%95%99%E7%A8%8B%E4%B9%8BRabbitMq%E6%B6%88%E6%81%AF%E7%A1%AE%E8%AE%A4%E6%9C%BA%E5%88%B6-%E4%BA%8B%E5%8A%A1%E7%9A%84%E4%BD%BF%E7%94%A8%E5%A7%BF%E5%8A%BF/#IV-%E6%B5%8B%E8%AF%95"><span class="toc-text">IV. 测试</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="https://spring.hhui.top/spring-blog/2020/02/19/200219-SpringBoot%E7%B3%BB%E5%88%97%E6%95%99%E7%A8%8B%E4%B9%8BRabbitMq%E6%B6%88%E6%81%AF%E7%A1%AE%E8%AE%A4%E6%9C%BA%E5%88%B6-%E4%BA%8B%E5%8A%A1%E7%9A%84%E4%BD%BF%E7%94%A8%E5%A7%BF%E5%8A%BF/#V-%E5%85%B6%E4%BB%96"><span class="toc-text">V. 其他</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="https://spring.hhui.top/spring-blog/2020/02/19/200219-SpringBoot%E7%B3%BB%E5%88%97%E6%95%99%E7%A8%8B%E4%B9%8BRabbitMq%E6%B6%88%E6%81%AF%E7%A1%AE%E8%AE%A4%E6%9C%BA%E5%88%B6-%E4%BA%8B%E5%8A%A1%E7%9A%84%E4%BD%BF%E7%94%A8%E5%A7%BF%E5%8A%BF/#1-%E4%B8%80%E7%81%B0%E7%81%B0Blog"><span class="toc-text">1. 一灰灰Blog</span></a></li></ol></li></ol>
+                </div>
+            
+            <p>上一篇介绍了RabbitMq借助RabbitTemplate来发送消息的基本使用姿势，我们知道RabbitMq提供了两种机制，来确保发送端的消息被brocke正确接收，本文将主要介绍，在消息确认和事物两种机制的场景下，发送消息的使用姿势</p>
+<a id="more"></a>
+<h2 id="I-配置"><a href="https://spring.hhui.top/spring-blog/2020/02/19/200219-SpringBoot%E7%B3%BB%E5%88%97%E6%95%99%E7%A8%8B%E4%B9%8BRabbitMq%E6%B6%88%E6%81%AF%E7%A1%AE%E8%AE%A4%E6%9C%BA%E5%88%B6-%E4%BA%8B%E5%8A%A1%E7%9A%84%E4%BD%BF%E7%94%A8%E5%A7%BF%E5%8A%BF/#I-%E9%85%8D%E7%BD%AE" class="headerlink" title="I. 配置"></a>I. 配置</h2><p>首先创建一个SpringBoot项目，用于后续的演示</p>
+<ul>
+<li>springboot版本为<code>2.2.1.RELEASE</code></li>
+<li>rabbitmq 版本为 <code>3.7.5</code> （安装教程可参考: <a href="http://mp.weixin.qq.com/s?__biz=MzU3MTAzNTMzMQ==&amp;mid=2247484522&amp;idx=1&amp;sn=411fad078902200314d594b932fbdf35" target="_blank" rel="noopener">【MQ系列】springboot + rabbitmq初体验</a>）</li>
+</ul>
+<p>依赖配置文件pom.xml</p>
+<figure class="highlight xml"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">parent</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>org.springframework.boot<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>spring-boot-starter-parent<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">version</span>&gt;</span>2.2.1.RELEASE<span class="tag">&lt;/<span class="name">version</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">relativePath</span>/&gt;</span> <span class="comment">&lt;!-- lookup parent from repository --&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">parent</span>&gt;</span></span><br><span class="line"></span><br><span class="line"><span class="tag">&lt;<span class="name">properties</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">project.build.sourceEncoding</span>&gt;</span>UTF-8<span class="tag">&lt;/<span class="name">project.build.sourceEncoding</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">project.reporting.outputEncoding</span>&gt;</span>UTF-8<span class="tag">&lt;/<span class="name">project.reporting.outputEncoding</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">java.version</span>&gt;</span>1.8<span class="tag">&lt;/<span class="name">java.version</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">properties</span>&gt;</span></span><br><span class="line"></span><br><span class="line"><span class="tag">&lt;<span class="name">dependencies</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">dependency</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>org.springframework.boot<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>spring-boot-starter-amqp<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">dependency</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>org.springframework.boot<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>spring-boot-starter-web<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">dependencies</span>&gt;</span></span><br><span class="line"></span><br><span class="line"><span class="tag">&lt;<span class="name">build</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">pluginManagement</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">plugins</span>&gt;</span></span><br><span class="line">            <span class="tag">&lt;<span class="name">plugin</span>&gt;</span></span><br><span class="line">                <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>org.springframework.boot<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></span><br><span class="line">                <span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>spring-boot-maven-plugin<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></span><br><span class="line">            <span class="tag">&lt;/<span class="name">plugin</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;/<span class="name">plugins</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;/<span class="name">pluginManagement</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">build</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;<span class="name">repositories</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">repository</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">id</span>&gt;</span>spring-snapshots<span class="tag">&lt;/<span class="name">id</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">name</span>&gt;</span>Spring Snapshots<span class="tag">&lt;/<span class="name">name</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">url</span>&gt;</span>https://repo.spring.io/libs-snapshot-local<span class="tag">&lt;/<span class="name">url</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">snapshots</span>&gt;</span></span><br><span class="line">            <span class="tag">&lt;<span class="name">enabled</span>&gt;</span>true<span class="tag">&lt;/<span class="name">enabled</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;/<span class="name">snapshots</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;/<span class="name">repository</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">repository</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">id</span>&gt;</span>spring-milestones<span class="tag">&lt;/<span class="name">id</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">name</span>&gt;</span>Spring Milestones<span class="tag">&lt;/<span class="name">name</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">url</span>&gt;</span>https://repo.spring.io/libs-milestone-local<span class="tag">&lt;/<span class="name">url</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">snapshots</span>&gt;</span></span><br><span class="line">            <span class="tag">&lt;<span class="name">enabled</span>&gt;</span>false<span class="tag">&lt;/<span class="name">enabled</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;/<span class="name">snapshots</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;/<span class="name">repository</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">repository</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">id</span>&gt;</span>spring-releases<span class="tag">&lt;/<span class="name">id</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">name</span>&gt;</span>Spring Releases<span class="tag">&lt;/<span class="name">name</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">url</span>&gt;</span>https://repo.spring.io/libs-release-local<span class="tag">&lt;/<span class="name">url</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">snapshots</span>&gt;</span></span><br><span class="line">            <span class="tag">&lt;<span class="name">enabled</span>&gt;</span>false<span class="tag">&lt;/<span class="name">enabled</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;/<span class="name">snapshots</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;/<span class="name">repository</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">repositories</span>&gt;</span></span><br></pre></td></tr></tbody></table></figure>
+<p>在<code>application.yml</code>配置文件中，添加rabbitmq的相关属性</p>
+<figure class="highlight yml"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">spring:</span></span><br><span class="line">  <span class="attr">rabbitmq:</span></span><br><span class="line">    <span class="attr">virtual-host:</span> <span class="string">/</span></span><br><span class="line">    <span class="attr">username:</span> <span class="string">admin</span></span><br><span class="line">    <span class="attr">password:</span> <span class="string">admin</span></span><br><span class="line">    <span class="attr">port:</span> <span class="number">5672</span></span><br><span class="line">    <span class="attr">host:</span> <span class="number">127.0</span><span class="number">.0</span><span class="number">.1</span></span><br></pre></td></tr></tbody></table></figure>
+<h2 id="II-消息确认机制"><a href="https://spring.hhui.top/spring-blog/2020/02/19/200219-SpringBoot%E7%B3%BB%E5%88%97%E6%95%99%E7%A8%8B%E4%B9%8BRabbitMq%E6%B6%88%E6%81%AF%E7%A1%AE%E8%AE%A4%E6%9C%BA%E5%88%B6-%E4%BA%8B%E5%8A%A1%E7%9A%84%E4%BD%BF%E7%94%A8%E5%A7%BF%E5%8A%BF/#II-%E6%B6%88%E6%81%AF%E7%A1%AE%E8%AE%A4%E6%9C%BA%E5%88%B6" class="headerlink" title="II. 消息确认机制"></a>II. 消息确认机制</h2><p>本节来看一下消息确认机制的使用姿势，首先有必要了解一下什么是消息确认机制</p>
+<h3 id="1-定义"><a href="https://spring.hhui.top/spring-blog/2020/02/19/200219-SpringBoot%E7%B3%BB%E5%88%97%E6%95%99%E7%A8%8B%E4%B9%8BRabbitMq%E6%B6%88%E6%81%AF%E7%A1%AE%E8%AE%A4%E6%9C%BA%E5%88%B6-%E4%BA%8B%E5%8A%A1%E7%9A%84%E4%BD%BF%E7%94%A8%E5%A7%BF%E5%8A%BF/#1-%E5%AE%9A%E4%B9%89" class="headerlink" title="1. 定义"></a>1. 定义</h3><blockquote>
+<p>简单来讲就是消息发送之后，需要接收到RabbitMq的正确反馈，然后才能判断消息是否正确发送成功；</p>
+</blockquote>
+<p>一般来说，RabbitMq的业务逻辑包括以下几点</p>
+<ul>
+<li>生产者将信道设置成Confirm模式，一旦信道进入Confirm模式，所有在该信道上面发布的消息都会被指派一个唯一的ID(以confirm.select为基础从1开始计数)</li>
+<li>一旦消息被投递到所有匹配的队列之后，Broker就会发送一个确认给生产者（包含消息的唯一ID）,这就使得生产者知道消息已经正确到达目的队列了</li>
+<li>如果消息和队列是可持久化的，那么确认消息会将消息写入磁盘之后发出</li>
+<li>Broker回传给生产者的确认消息中deliver-tag域包含了确认消息的序列号（此外Broker也可以设置basic.ack的multiple域，表示到这个序列号之前的所有消息都已经得到了处理）</li>
+</ul>
+<h3 id="2-基本使用case"><a href="https://spring.hhui.top/spring-blog/2020/02/19/200219-SpringBoot%E7%B3%BB%E5%88%97%E6%95%99%E7%A8%8B%E4%B9%8BRabbitMq%E6%B6%88%E6%81%AF%E7%A1%AE%E8%AE%A4%E6%9C%BA%E5%88%B6-%E4%BA%8B%E5%8A%A1%E7%9A%84%E4%BD%BF%E7%94%A8%E5%A7%BF%E5%8A%BF/#2-%E5%9F%BA%E6%9C%AC%E4%BD%BF%E7%94%A8case" class="headerlink" title="2. 基本使用case"></a>2. 基本使用case</h3><p>从上面的解释，可以知道发送消息端，需要先将信道设置为Confirm模式，<code>RabbitProperties</code>配置类中，有个属性，正好是用来设置的这个参数的，所以我们可以直接在配置文件<code>application.yml</code>中，添加下面的配置</p>
+<figure class="highlight yml"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">spring:</span></span><br><span class="line">  <span class="attr">rabbitmq:</span></span><br><span class="line">    <span class="comment"># 在2.2.1.release版本中，下面这个配置属于删除状态，推荐使用后一种配置方式</span></span><br><span class="line">    <span class="comment"># publisher-confirms: true</span></span><br><span class="line">    <span class="attr">publisher-confirm-type:</span> <span class="string">correlated</span></span><br><span class="line">    <span class="comment"># 下面这个配置，表示接收mq返回的确认消息</span></span><br><span class="line">    <span class="attr">publisher-returns:</span> <span class="literal">true</span></span><br></pre></td></tr></tbody></table></figure>
+<p>上面配置完毕之后，直接使用RabbitTemplate发送消息，表示已经支持Confirm模式了，但实际的使用，会有一点点区别，我们需要接收mq返回的消息，发送失败的回调（以实现重试逻辑等），所以一个典型的发送端代码可以如下</p>
+<figure class="highlight java"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Service</span></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">AckPublisher</span> <span class="keyword">implements</span> <span class="title">RabbitTemplate</span>.<span class="title">ConfirmCallback</span>, <span class="title">RabbitTemplate</span>.<span class="title">ReturnCallback</span> </span>{</span><br><span class="line">    <span class="meta">@Autowired</span></span><br><span class="line">    <span class="keyword">private</span> RabbitTemplate rabbitTemplate;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@PostConstruct</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">init</span><span class="params">()</span> </span>{</span><br><span class="line">        rabbitTemplate.setReturnCallback(<span class="keyword">this</span>);</span><br><span class="line">        rabbitTemplate.setConfirmCallback(<span class="keyword">this</span>);</span><br><span class="line">    }</span><br><span class="line"></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 接收发送后确认信息</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@param</span> correlationData</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@param</span> ack</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@param</span> cause</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">confirm</span><span class="params">(CorrelationData correlationData, <span class="keyword">boolean</span> ack, String cause)</span> </span>{</span><br><span class="line">        <span class="keyword">if</span> (ack) {</span><br><span class="line">            System.out.println(<span class="string">"ack send succeed: "</span> + correlationData);</span><br><span class="line">        } <span class="keyword">else</span> {</span><br><span class="line">            System.out.println(<span class="string">"ack send failed: "</span> + correlationData + <span class="string">"|"</span> + cause);</span><br><span class="line">        }</span><br><span class="line">    }</span><br><span class="line"></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 发送失败的回调</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@param</span> message</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@param</span> replyCode</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@param</span> replyText</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@param</span> exchange</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@param</span> routingKey</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">returnedMessage</span><span class="params">(Message message, <span class="keyword">int</span> replyCode, String replyText, String exchange, String routingKey)</span> </span>{</span><br><span class="line">        System.out.println(<span class="string">"ack "</span> + message + <span class="string">" 发送失败"</span>);</span><br><span class="line">    }</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 一般的用法，推送消息</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@param</span> ans</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@return</span></span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> String <span class="title">publish</span><span class="params">(String ans)</span> </span>{</span><br><span class="line">        String msg = <span class="string">"ack msg = "</span> + ans;</span><br><span class="line">        System.out.println(<span class="string">"publish: "</span> + msg);</span><br><span class="line"></span><br><span class="line">        CorrelationData correlationData = <span class="keyword">new</span> CorrelationData(UUID.randomUUID().toString());</span><br><span class="line">        rabbitTemplate.convertAndSend(MqConstants.exchange, MqConstants.routing, msg, correlationData);</span><br><span class="line">        <span class="keyword">return</span> msg;</span><br><span class="line">    }</span><br><span class="line">}</span><br></pre></td></tr></tbody></table></figure>
+<p>请注意上面的实现，首先需要给RabbitTemplate设置回调，这两个不可或缺</p>
+<figure class="highlight java"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">rabbitTemplate.setReturnCallback(<span class="keyword">this</span>);</span><br><span class="line">rabbitTemplate.setConfirmCallback(<span class="keyword">this</span>);</span><br></pre></td></tr></tbody></table></figure>
+<h3 id="3-手动配置方式"><a href="https://spring.hhui.top/spring-blog/2020/02/19/200219-SpringBoot%E7%B3%BB%E5%88%97%E6%95%99%E7%A8%8B%E4%B9%8BRabbitMq%E6%B6%88%E6%81%AF%E7%A1%AE%E8%AE%A4%E6%9C%BA%E5%88%B6-%E4%BA%8B%E5%8A%A1%E7%9A%84%E4%BD%BF%E7%94%A8%E5%A7%BF%E5%8A%BF/#3-%E6%89%8B%E5%8A%A8%E9%85%8D%E7%BD%AE%E6%96%B9%E5%BC%8F" class="headerlink" title="3. 手动配置方式"></a>3. 手动配置方式</h3><p>上面利用的是标准的SpringBoot配置，一般来说是适用于绝大多数的场景的；当不能覆盖的时候，还可以通过手动的方式来定义一个特定的RabbitTemplate（比如一个项目中，只有某一个场景的消息发送需要确认机制，其他的默认即可，所以需要区分RabbitTemplate）</p>
+<p>在自动配置类中，可以手动的注册一个RabbitTemplate的bean，来专职消息确认模式的发送</p>
+<figure class="highlight java"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Value</span>(<span class="string">"${spring.rabbitmq.host}"</span>)</span><br><span class="line"><span class="keyword">private</span> String host;</span><br><span class="line"><span class="meta">@Value</span>(<span class="string">"${spring.rabbitmq.port}"</span>)</span><br><span class="line"><span class="keyword">private</span> Integer port;</span><br><span class="line"><span class="meta">@Value</span>(<span class="string">"${spring.rabbitmq.username}"</span>)</span><br><span class="line"><span class="keyword">private</span> String username;</span><br><span class="line"><span class="meta">@Value</span>(<span class="string">"${spring.rabbitmq.password}"</span>)</span><br><span class="line"><span class="keyword">private</span> String password;</span><br><span class="line"><span class="meta">@Value</span>(<span class="string">"${spring.rabbitmq.virtual-host}"</span>)</span><br><span class="line"><span class="keyword">private</span> String virtualHost;</span><br><span class="line"></span><br><span class="line"><span class="meta">@Bean</span></span><br><span class="line"><span class="function"><span class="keyword">public</span> RabbitTemplate <span class="title">ackRabbitTemplate</span><span class="params">()</span> </span>{</span><br><span class="line">    CachingConnectionFactory connectionFactory = <span class="keyword">new</span> CachingConnectionFactory();</span><br><span class="line">    connectionFactory.setHost(host);</span><br><span class="line">    connectionFactory.setPort(port);</span><br><span class="line">    connectionFactory.setUsername(username);</span><br><span class="line">    connectionFactory.setPassword(password);</span><br><span class="line">    connectionFactory.setVirtualHost(virtualHost);</span><br><span class="line">    <span class="comment">// 设置ack为true</span></span><br><span class="line">    connectionFactory.setPublisherConfirmType(CachingConnectionFactory.ConfirmType.CORRELATED);</span><br><span class="line">    connectionFactory.setPublisherReturns(<span class="keyword">true</span>);</span><br><span class="line">    <span class="keyword">return</span> <span class="keyword">new</span> RabbitTemplate(connectionFactory);</span><br><span class="line">}</span><br></pre></td></tr></tbody></table></figure>
+<p>至于使用姿势，和前面完全一致，只是将<code>rabbitTemplate</code>换成<code>ackRabbitTemplate</code></p>
+<h2 id="III-事务机制"><a href="https://spring.hhui.top/spring-blog/2020/02/19/200219-SpringBoot%E7%B3%BB%E5%88%97%E6%95%99%E7%A8%8B%E4%B9%8BRabbitMq%E6%B6%88%E6%81%AF%E7%A1%AE%E8%AE%A4%E6%9C%BA%E5%88%B6-%E4%BA%8B%E5%8A%A1%E7%9A%84%E4%BD%BF%E7%94%A8%E5%A7%BF%E5%8A%BF/#III-%E4%BA%8B%E5%8A%A1%E6%9C%BA%E5%88%B6" class="headerlink" title="III. 事务机制"></a>III. 事务机制</h2><p>消息确认机制属于异步模式，也就是说一个消息发送完毕之后，不待返回，就可以发送另外一条消息；这里就会有一个问题，publisher先后发送msg1, msg2，但是对RabbitMq而言，接收的顺序可能是msg2, msg1；所以消息的顺序可能会不一致</p>
+<p>所以有了更加严格的事务机制，它属于同步模式，发送消息之后，等到接收到确认返回之后，才能发送下一条消息</p>
+<h3 id="1-事务使用方式"><a href="https://spring.hhui.top/spring-blog/2020/02/19/200219-SpringBoot%E7%B3%BB%E5%88%97%E6%95%99%E7%A8%8B%E4%B9%8BRabbitMq%E6%B6%88%E6%81%AF%E7%A1%AE%E8%AE%A4%E6%9C%BA%E5%88%B6-%E4%BA%8B%E5%8A%A1%E7%9A%84%E4%BD%BF%E7%94%A8%E5%A7%BF%E5%8A%BF/#1-%E4%BA%8B%E5%8A%A1%E4%BD%BF%E7%94%A8%E6%96%B9%E5%BC%8F" class="headerlink" title="1. 事务使用方式"></a>1. 事务使用方式</h3><p>首先我们定义一个事务管理器</p>
+<figure class="highlight java"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * 配置rabbitmq事务</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * <span class="doctag">@param</span> connectionFactory</span></span><br><span class="line"><span class="comment"> * <span class="doctag">@return</span></span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="meta">@Bean</span>(<span class="string">"rabbitTransactionManager"</span>)</span><br><span class="line"><span class="function"><span class="keyword">public</span> RabbitTransactionManager <span class="title">rabbitTransactionManager</span><span class="params">(ConnectionFactory connectionFactory)</span> </span>{</span><br><span class="line">    <span class="keyword">return</span> <span class="keyword">new</span> RabbitTransactionManager(connectionFactory);</span><br><span class="line">}</span><br><span class="line"></span><br><span class="line"><span class="meta">@Bean</span></span><br><span class="line"><span class="function"><span class="keyword">public</span> RabbitTemplate <span class="title">transactionRabbitTemplate</span><span class="params">(ConnectionFactory connectionFactory)</span> </span>{</span><br><span class="line">    <span class="keyword">return</span> <span class="keyword">new</span> RabbitTemplate(connectionFactory);</span><br><span class="line">}</span><br></pre></td></tr></tbody></table></figure>
+<p>事务机制的使用姿势，看起来和上面的消息确认差不多，无非是需要添加一个<code>@Transactional</code>注解罢了</p>
+<figure class="highlight java"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Service</span></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">TransactionPublisher</span> <span class="keyword">implements</span> <span class="title">RabbitTemplate</span>.<span class="title">ReturnCallback</span> </span>{</span><br><span class="line">    <span class="meta">@Autowired</span></span><br><span class="line">    <span class="keyword">private</span> RabbitTemplate transactionRabbitTemplate;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@PostConstruct</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">init</span><span class="params">()</span> </span>{</span><br><span class="line">        <span class="comment">// 将信道设置为事务模式</span></span><br><span class="line">        transactionRabbitTemplate.setChannelTransacted(<span class="keyword">true</span>);</span><br><span class="line">        transactionRabbitTemplate.setReturnCallback(<span class="keyword">this</span>);</span><br><span class="line">    }</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">returnedMessage</span><span class="params">(Message message, <span class="keyword">int</span> replyCode, String replyText, String exchange, String routingKey)</span> </span>{</span><br><span class="line">        System.out.println(<span class="string">"事务 "</span> + message + <span class="string">" 发送失败"</span>);</span><br><span class="line">    }</span><br><span class="line"></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 一般的用法，推送消息</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@param</span> ans</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@return</span></span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="meta">@Transactional</span>(rollbackFor = Exception<span class="class">.<span class="keyword">class</span>, <span class="title">transactionManager</span> </span>= <span class="string">"rabbitTransactionManager"</span>)</span><br><span class="line">    <span class="function"><span class="keyword">public</span> String <span class="title">publish</span><span class="params">(String ans)</span> </span>{</span><br><span class="line">        String msg = <span class="string">"transaction msg = "</span> + ans;</span><br><span class="line">        System.out.println(<span class="string">"publish: "</span> + msg);</span><br><span class="line"></span><br><span class="line">        CorrelationData correlationData = <span class="keyword">new</span> CorrelationData(UUID.randomUUID().toString());</span><br><span class="line">        transactionRabbitTemplate.convertAndSend(MqConstants.exchange, MqConstants.routing, msg, correlationData);</span><br><span class="line">        <span class="keyword">return</span> msg;</span><br><span class="line">    }</span><br><span class="line">}</span><br></pre></td></tr></tbody></table></figure>
+<p>请注意，核心代码设置信道为事务模式必不可少</p>
+<figure class="highlight java"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 将信道设置为事务模式</span></span><br><span class="line">transactionRabbitTemplate.setChannelTransacted(<span class="keyword">true</span>);</span><br></pre></td></tr></tbody></table></figure>
+<h2 id="IV-测试"><a href="https://spring.hhui.top/spring-blog/2020/02/19/200219-SpringBoot%E7%B3%BB%E5%88%97%E6%95%99%E7%A8%8B%E4%B9%8BRabbitMq%E6%B6%88%E6%81%AF%E7%A1%AE%E8%AE%A4%E6%9C%BA%E5%88%B6-%E4%BA%8B%E5%8A%A1%E7%9A%84%E4%BD%BF%E7%94%A8%E5%A7%BF%E5%8A%BF/#IV-%E6%B5%8B%E8%AF%95" class="headerlink" title="IV. 测试"></a>IV. 测试</h2><p>我们这里主要测试一下事务和消息确认机制的性能对比吧，从定义上来看消息确认机制效率更高，我们简单的对比一下</p>
+<figure class="highlight java"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@RestController</span></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">PubRest</span> </span>{</span><br><span class="line">    <span class="meta">@Autowired</span></span><br><span class="line">    <span class="keyword">private</span> AckPublisher ackPublisher;</span><br><span class="line">    <span class="meta">@Autowired</span></span><br><span class="line">    <span class="keyword">private</span> TransactionPublisher transactionPublisher;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> AtomicInteger atomicInteger = <span class="keyword">new</span> AtomicInteger(<span class="number">1</span>);</span><br><span class="line"></span><br><span class="line">    <span class="meta">@GetMapping</span>(path = <span class="string">"judge"</span>)</span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">boolean</span> <span class="title">judge</span><span class="params">(String name)</span> </span>{</span><br><span class="line">        <span class="keyword">for</span> (<span class="keyword">int</span> i = <span class="number">0</span>; i &lt; <span class="number">10</span>; i++) {</span><br><span class="line">            <span class="keyword">long</span> start = System.currentTimeMillis();</span><br><span class="line">            ackPublisher.publish(name + atomicInteger.getAndIncrement());</span><br><span class="line">            ackPublisher.publish(name + atomicInteger.getAndIncrement());</span><br><span class="line">            ackPublisher.publish(name + atomicInteger.getAndIncrement());</span><br><span class="line">            <span class="keyword">long</span> mid = System.currentTimeMillis();</span><br><span class="line">            System.out.println(<span class="string">"ack cost: "</span> + (mid - start));</span><br><span class="line"></span><br><span class="line">            transactionPublisher.publish(name + atomicInteger.getAndIncrement());</span><br><span class="line">            transactionPublisher.publish(name + atomicInteger.getAndIncrement());</span><br><span class="line">            transactionPublisher.publish(name + atomicInteger.getAndIncrement());</span><br><span class="line">            System.out.println(<span class="string">"transaction cost: "</span> + (System.currentTimeMillis() - mid));</span><br><span class="line">        }</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">true</span>;</span><br><span class="line">    }</span><br><span class="line">}</span><br></pre></td></tr></tbody></table></figure>
+<p>去掉无关的输出，仅保留耗时，对比如下（差距还是很明显的）</p>
+<figure class="highlight plain"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line">ack cost: 5</span><br><span class="line">transaction cost: 111</span><br><span class="line"></span><br><span class="line">ack cost: 3</span><br><span class="line">transaction cost: 108</span><br><span class="line"></span><br><span class="line">ack cost: 2</span><br><span class="line">transaction cost: 101</span><br><span class="line"></span><br><span class="line">ack cost: 3</span><br><span class="line">transaction cost: 107</span><br><span class="line"></span><br><span class="line">ack cost: 14</span><br><span class="line">transaction cost: 106</span><br><span class="line"></span><br><span class="line">ack cost: 2</span><br><span class="line">transaction cost: 140</span><br><span class="line"></span><br><span class="line">ack cost: 4</span><br><span class="line">transaction cost: 124</span><br><span class="line"></span><br><span class="line">ack cost: 4</span><br><span class="line">transaction cost: 131</span><br><span class="line"></span><br><span class="line">ack cost: 4</span><br><span class="line">transaction cost: 129</span><br><span class="line"></span><br><span class="line">ack cost: 2</span><br><span class="line">transaction cost: 99</span><br></pre></td></tr></tbody></table></figure>
+<h2 id="V-其他"><a href="https://spring.hhui.top/spring-blog/2020/02/19/200219-SpringBoot%E7%B3%BB%E5%88%97%E6%95%99%E7%A8%8B%E4%B9%8BRabbitMq%E6%B6%88%E6%81%AF%E7%A1%AE%E8%AE%A4%E6%9C%BA%E5%88%B6-%E4%BA%8B%E5%8A%A1%E7%9A%84%E4%BD%BF%E7%94%A8%E5%A7%BF%E5%8A%BF/#V-%E5%85%B6%E4%BB%96" class="headerlink" title="V. 其他"></a>V. 其他</h2><p><strong>系列博文</strong></p>
+<ul>
+<li><a href="http://spring.hhui.top/spring-blog/2020/02/10/200210-SpringBoot%E7%B3%BB%E5%88%97%E6%95%99%E7%A8%8B%E4%B9%8BRabbitMq%E5%88%9D%E4%BD%93%E9%AA%8C/">【MQ系列】springboot + rabbitmq初体验</a></li>
+<li><a href="http://spring.hhui.top/spring-blog/2020/02/12/200212-SpringBoot%E7%B3%BB%E5%88%97%E6%95%99%E7%A8%8B%E4%B9%8BRabbitMq%E6%A0%B8%E5%BF%83%E7%9F%A5%E8%AF%86%E7%82%B9%E5%B0%8F%E7%BB%93/">【MQ系列】RabbitMq核心知识点小结</a></li>
+<li><a href="http://spring.hhui.top/spring-blog/2020/02/18/200218-SpringBoot%E7%B3%BB%E5%88%97%E6%95%99%E7%A8%8B%E4%B9%8BRabbitMq%E5%8F%91%E9%80%81%E6%B6%88%E6%81%AF%E7%9A%84%E5%9F%BA%E6%9C%AC%E4%BD%BF%E7%94%A8%E5%A7%BF%E5%8A%BF/">【MQ系列】SprigBoot + RabbitMq发送消息基本使用姿势</a></li>
+</ul>
+<p><strong>项目源码</strong></p>
+<ul>
+<li>工程：<a href="https://github.com/liuyueyi/spring-boot-demo" target="_blank" rel="noopener">https://github.com/liuyueyi/spring-boot-demo</a></li>
+<li>源码：<a href="https://github.com/liuyueyi/spring-boot-demo/tree/master/spring-boot/301-rabbitmq-publish" target="_blank" rel="noopener">https://github.com/liuyueyi/spring-boot-demo/tree/master/spring-boot/301-rabbitmq-publish</a></li>
+</ul>
+<h3 id="1-一灰灰Blog"><a href="https://spring.hhui.top/spring-blog/2020/02/19/200219-SpringBoot%E7%B3%BB%E5%88%97%E6%95%99%E7%A8%8B%E4%B9%8BRabbitMq%E6%B6%88%E6%81%AF%E7%A1%AE%E8%AE%A4%E6%9C%BA%E5%88%B6-%E4%BA%8B%E5%8A%A1%E7%9A%84%E4%BD%BF%E7%94%A8%E5%A7%BF%E5%8A%BF/#1-%E4%B8%80%E7%81%B0%E7%81%B0Blog" class="headerlink" title="1. 一灰灰Blog"></a>1. 一灰灰Blog</h3><p>尽信书则不如，以上内容，纯属一家之言，因个人能力有限，难免有疏漏和错误之处，如发现bug或者有更好的建议，欢迎批评指正，不吝感激</p>
+<p>下面一灰灰的个人博客，记录所有学习和工作中的博文，欢迎大家前去逛逛</p>
+<ul>
+<li>一灰灰Blog个人博客 <a href="https://blog.hhui.top/" target="_blank" rel="noopener">https://blog.hhui.top</a></li>
+<li>一灰灰Blog-Spring专题博客 <a href="http://spring.hhui.top/">http://spring.hhui.top</a></li>
+</ul>
+<p><a href="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/info.png" title="一灰灰blog" class="gallery-item" lg-event-uid="&amp;1"><img src="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/info.png" alt="一灰灰blog"></a><span class="caption">一灰灰blog</span></p>
+
+            <pay>
+    <div style="text-align:center"><br>
+        <a id="pay-btn" disable="enable" onclick="var qr = document.getElementById(&#39;QR&#39;); if (qr.style.display === &#39;none&#39;) {qr.style.display=&#39;block&#39;;} else {qr.style.display=&#39;none&#39;}">
+            打赏
+        </a>
+        <span style="display: block;color: #9d9d9d;font: 14px;margin-top:4px">如果觉得我的文章对您有帮助，请随意打赏。</span>
+        <br>
+        <div id="QR" style="display: none; margin-top: 20px;" class="row">
+            <div id="wechat" style="display: inline-block;width:44%;margin-left:6%;text-align:center;">
+                <a href="javascript:void(0)">
+                    <img src="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/paywx.jpg" alt="WeChat Pay"><span class="caption">WeChat Pay</span>
+                </a>
+                <p style="text-align:center">微信打赏</p></div>
+            <div id="alipay" style="display: inline-block;width:44%;text-align:center">
+                <a href="javascript:void(0)">
+                    <img src="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/payzfb.png" alt="Alipay"><span class="caption">Alipay</span>
+                </a>
+                <p style="text-align:center">支付宝打赏</p></div>
+        </div>
+    </div>
+</pay>
+
+        
+        </div>
+        <footer class="article-footer">
+            <div class="share-container">
+
+
+
+</div>
+
+    <a data-url="http://spring.hhui.top/2020/02/19/200219-SpringBoot系列教程之RabbitMq消息确认机制-事务的使用姿势/" data-id="cl9pdxlt30088ifvg6tau8ltu" class="article-share-link"><i class="fas fa-share"></i>分享到</a>
+<script>
+    (function ($) {
+        // Prevent duplicate binding
+        if (typeof(__SHARE_BUTTON_BINDED__) === 'undefined' || !__SHARE_BUTTON_BINDED__) {
+            __SHARE_BUTTON_BINDED__ = true;
+        } else {
+            return;
+        }
+        $('body').on('click', function() {
+            $('.article-share-box.on').removeClass('on');
+        }).on('click', '.article-share-link', function(e) {
+            e.stopPropagation();
+
+            var $this = $(this),
+                url = $this.attr('data-url'),
+                encodedUrl = encodeURIComponent(url),
+                id = 'article-share-box-' + $this.attr('data-id'),
+                offset = $this.offset(),
+                box;
+
+            if ($('#' + id).length) {
+                box = $('#' + id);
+
+                if (box.hasClass('on')){
+                    box.removeClass('on');
+                    return;
+                }
+            } else {
+                var html = [
+                    '<div id="' + id + '" class="article-share-box">',
+                        '<input class="article-share-input" value="' + url + '">',
+                        '<div class="article-share-links">',
+                            '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="fab fa-twitter article-share-twitter" target="_blank" title="Twitter"></a>',
+                            '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="fab fa-facebook article-share-facebook" target="_blank" title="Facebook"></a>',
+                            '<a href="http://pinterest.com/pin/create/button/?url=' + encodedUrl + '" class="fab fa-pinterest article-share-pinterest" target="_blank" title="Pinterest"></a>',
+                            '<a href="https://plus.google.com/share?url=' + encodedUrl + '" class="fab fa-google article-share-google" target="_blank" title="Google+"></a>',
+                        '</div>',
+                    '</div>'
+                ].join('');
+
+              box = $(html);
+
+              $('body').append(box);
+            }
+
+            $('.article-share-box.on').hide();
+
+            box.css({
+                top: offset.top + 25,
+                left: offset.left
+            }).addClass('on');
+
+        }).on('click', '.article-share-box', function (e) {
+            e.stopPropagation();
+        }).on('click', '.article-share-box-input', function () {
+            $(this).select();
+        }).on('click', '.article-share-box-link', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            window.open(this.href, 'article-share-box-window-' + Date.now(), 'width=500,height=450');
+        });
+    })(jQuery);
+</script>
+
+            
+    
+
+        </footer>
+    </div>
+    
+        
+<nav id="article-nav">
+    
+        <a href="https://spring.hhui.top/spring-blog/2020/03/17/200317-SpringBoot%E7%B3%BB%E5%88%97%E6%95%99%E7%A8%8B%E4%B9%8B%E5%AE%9E%E6%88%98%EF%BC%9A%E5%A6%82%E4%BD%95%E6%8C%87%E5%AE%9A%E7%89%B9%E5%AE%9Abean%E6%9C%80%E5%85%88%E5%8A%A0%E8%BD%BD/" id="article-nav-newer" class="article-nav-link-wrap">
+            <strong class="article-nav-caption">上一篇</strong>
+            <div class="article-nav-title">
+                
+                    【基础系列-实战】如何指定bean最先加载(应用篇)
+                
+            </div>
+        </a>
+    
+    
+        <a href="https://spring.hhui.top/spring-blog/2020/02/18/200218-SpringBoot%E7%B3%BB%E5%88%97%E6%95%99%E7%A8%8B%E4%B9%8BRabbitMq%E5%8F%91%E9%80%81%E6%B6%88%E6%81%AF%E7%9A%84%E5%9F%BA%E6%9C%AC%E4%BD%BF%E7%94%A8%E5%A7%BF%E5%8A%BF/" id="article-nav-older" class="article-nav-link-wrap">
+            <strong class="article-nav-caption">下一篇</strong>
+            <div class="article-nav-title">【MQ系列】SprigBoot + RabbitMq发送消息基本使用姿势</div>
+        </a>
+    
+</nav>
+
+
+    
+</article>
+
+
+    
+    <script async="" src="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/f(9).txt" crossorigin="anonymous" data-checked-head="true"></script>
+    <ins class="adsbygoogle" style="display: block; text-align: center; height: 200px;" data-ad-layout="in-article" data-ad-format="fluid" data-ad-client="ca-pub-5592000528061748" data-ad-slot="3929760008" data-adsbygoogle-status="done"><div id="aswift_2_host" style="border: none; height: 200px; width: 831px; margin: 0px; padding: 0px; position: relative; visibility: visible; background-color: transparent; display: inline-block;"></div></ins>
+    <script>
+         (adsbygoogle = window.adsbygoogle || []).push({});
+    </script>
+    
+        <section id="comments">
+	<div id="commentContainer"><div class="gt-container"><div class="gt-meta"><span class="gt-counts"><a class="gt-link gt-link-counts" href="https://github.com/liuyueyi/spring-boot-demo/issues/100" target="_blank" rel="noopener noreferrer">0</a> 条评论</span><div class="gt-user"><div class="gt-user-inner"><span class="gt-user-name">未登录用户</span><span class="gt-ico gt-ico-arrdown"><span class="gt-svg"><svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" p-id="1619"><path d="M511.872 676.8c-0.003 0-0.006 0-0.008 0-9.137 0-17.379-3.829-23.21-9.97l-251.277-265.614c-5.415-5.72-8.743-13.464-8.744-21.984 0-17.678 14.33-32.008 32.008-32.008 9.157 0 17.416 3.845 23.25 10.009l228.045 241.103 228.224-241.088c5.855-6.165 14.113-10.001 23.266-10.001 8.516 0 16.256 3.32 21.998 8.736 12.784 12.145 13.36 32.434 1.264 45.233l-251.52 265.6c-5.844 6.155-14.086 9.984-23.223 9.984-0.025 0-0.051 0-0.076 0z" p-id="1620"></path></svg></span></span></div></div></div><div class="gt-header"><a class="gt-avatar-github"><span class="gt-ico gt-ico-github"><span class="gt-svg"><svg viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg">
+  <path d="M64 524C64 719.602 189.356 885.926 364.113 947.017 387.65799 953 384 936.115 384 924.767L384 847.107C248.118 863.007 242.674 773.052 233.5 758.001 215 726.501 171.5 718.501 184.5 703.501 215.5 687.501 247 707.501 283.5 761.501 309.956 800.642 361.366 794.075 387.658 787.497 393.403 763.997 405.637 743.042 422.353 726.638 281.774 701.609 223 615.67 223 513.5 223 464.053 239.322 418.406 271.465 381.627 251.142 320.928 273.421 269.19 276.337 261.415 334.458 256.131 394.888 302.993 399.549 306.685 432.663 297.835 470.341 293 512.5 293 554.924 293 592.81 297.896 626.075 306.853 637.426 298.219 693.46 258.054 747.5 262.966 750.382 270.652 772.185 321.292 753.058 381.083 785.516 417.956 802 463.809 802 513.5 802 615.874 742.99 701.953 601.803 726.786 625.381 750.003 640 782.295 640 818.008L640 930.653C640.752 939.626 640 948.664978 655.086 948.665 832.344 888.962 960 721.389 960 524 960 276.576 759.424 76 512 76 264.577 76 64 276.576 64 524Z"></path>
+</svg>
+</span></span></a><div class="gt-header-comment"><textarea class="gt-header-textarea " placeholder="说点什么" style="overflow: hidden; overflow-wrap: break-word; resize: none; height: 72px;"></textarea><div class="gt-header-preview markdown-body hide"></div><div class="gt-header-controls"><a class="gt-header-controls-tip" href="https://guides.github.com/features/mastering-markdown/" target="_blank" rel="noopener noreferrer"><span class="gt-ico gt-ico-tip"><span class="gt-svg"><svg viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg">
+  <path d="M512 366.949535c-16.065554 0-29.982212 13.405016-29.982212 29.879884l0 359.070251c0 16.167882 13.405016 29.879884 29.982212 29.879884 15.963226 0 29.879884-13.405016 29.879884-29.879884L541.879884 396.829419C541.879884 380.763865 528.474868 366.949535 512 366.949535L512 366.949535z" p-id="3083"></path>
+  <path d="M482.017788 287.645048c0-7.776956 3.274508-15.553912 8.80024-21.181973 5.525732-5.525732 13.302688-8.80024 21.181973-8.80024 7.776956 0 15.553912 3.274508 21.079644 8.80024 5.525732 5.62806 8.80024 13.405016 8.80024 21.181973 0 7.776956-3.274508 15.656241-8.80024 21.181973-5.525732 5.525732-13.405016 8.697911-21.079644 8.697911-7.879285 0-15.656241-3.274508-21.181973-8.697911C485.292295 303.301289 482.017788 295.524333 482.017788 287.645048L482.017788 287.645048z" p-id="3084"></path>
+  <path d="M512 946.844409c-239.8577 0-434.895573-195.037873-434.895573-434.895573 0-239.8577 195.037873-434.895573 434.895573-434.895573 239.755371 0 434.895573 195.037873 434.895573 434.895573C946.895573 751.806535 751.755371 946.844409 512 946.844409zM512 126.17088c-212.740682 0-385.880284 173.037274-385.880284 385.777955 0 212.740682 173.037274 385.777955 385.880284 385.777955 212.740682 0 385.777955-173.037274 385.777955-385.777955C897.777955 299.208154 724.740682 126.17088 512 126.17088z" p-id="3085"></path>
+</svg>
+</span><span class="gt-ico-text">支持 Markdown 语法</span></span></a><button class="gt-btn gt-btn-preview"><span class="gt-btn-text">预览</span></button><button class="gt-btn gt-btn-login"><span class="gt-btn-text">使用 GitHub 登录</span></button></div></div></div><div class="gt-comments"><div style="position: relative;"></div><p class="gt-comments-null">来做第一个留言的人吧！</p></div></div></div>
+</section>
+    
+
+</section>
+            
+                
+<aside id="sidebar">
+   
+        
+    <div class="widget-wrap">
+        <h3 class="widget-title">分类</h3>
+        <div class="widget">
+            <ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/">SpringBoot</a><span class="category-list-count">211</span><ul class="category-list-child"><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/DB%E7%B3%BB%E5%88%97/">DB系列</a><span class="category-list-count">78</span><ul class="category-list-child"><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/DB%E7%B3%BB%E5%88%97/H2Database/">H2Database</a><span class="category-list-count">1</span></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/DB%E7%B3%BB%E5%88%97/JPA/">JPA</a><span class="category-list-count">8</span></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/DB%E7%B3%BB%E5%88%97/JdbcTemplate/">JdbcTemplate</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/DB%E7%B3%BB%E5%88%97/Jooq/">Jooq</a><span class="category-list-count">10</span></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/DB%E7%B3%BB%E5%88%97/MongoDB/">MongoDB</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/DB%E7%B3%BB%E5%88%97/Mybatis/">Mybatis</a><span class="category-list-count">20</span></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/DB%E7%B3%BB%E5%88%97/Redis/">Redis</a><span class="category-list-count">20</span><ul class="category-list-child"><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/DB%E7%B3%BB%E5%88%97/Redis/%E5%BA%94%E7%94%A8%E7%AF%87/">应用篇</a><span class="category-list-count">4</span></li></ul></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/DB%E7%B3%BB%E5%88%97/%E4%BA%8B%E5%8A%A1/">事务</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/DB%E7%B3%BB%E5%88%97/%E5%88%9D%E5%A7%8B%E5%8C%96/">初始化</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/DB%E7%B3%BB%E5%88%97/%E7%A4%BA%E4%BE%8B/">示例</a><span class="category-list-count">1</span></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/DB%E7%B3%BB%E5%88%97/%E9%87%87%E5%9D%91%E8%AE%B0%E5%BD%95/">采坑记录</a><span class="category-list-count">1</span></li></ul></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/MQ%E7%B3%BB%E5%88%97/">MQ系列</a><span class="category-list-count">5</span><ul class="category-list-child"><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/MQ%E7%B3%BB%E5%88%97/RabbitMq/">RabbitMq</a><span class="category-list-count">5</span></li></ul></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/WEB%E7%B3%BB%E5%88%97/">WEB系列</a><span class="category-list-count">68</span><ul class="category-list-child"><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/WEB%E7%B3%BB%E5%88%97/Interceptor/">Interceptor</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/WEB%E7%B3%BB%E5%88%97/Request/">Request</a><span class="category-list-count">10</span></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/WEB%E7%B3%BB%E5%88%97/Response/">Response</a><span class="category-list-count">14</span></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/WEB%E7%B3%BB%E5%88%97/RestTemplate/">RestTemplate</a><span class="category-list-count">10</span></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/WEB%E7%B3%BB%E5%88%97/WebClient/">WebClient</a><span class="category-list-count">9</span></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/WEB%E7%B3%BB%E5%88%97/WebFlux/">WebFlux</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/WEB%E7%B3%BB%E5%88%97/WebSocket/">WebSocket</a><span class="category-list-count">1</span></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/WEB%E7%B3%BB%E5%88%97/web%E4%B8%89%E5%89%91%E5%AE%A2/">web三剑客</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/WEB%E7%B3%BB%E5%88%97/%E5%AE%B9%E5%99%A8/">容器</a><span class="category-list-count">1</span></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/WEB%E7%B3%BB%E5%88%97/%E5%BA%94%E7%94%A8%E7%AF%87/">应用篇</a><span class="category-list-count">4</span></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/WEB%E7%B3%BB%E5%88%97/%E7%A4%BA%E4%BE%8B/">示例</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/WEB%E7%B3%BB%E5%88%97/%E8%B8%A9%E5%9D%91%E8%AE%B0%E5%BD%95/">踩坑记录</a><span class="category-list-count">1</span></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/WEB%E7%B3%BB%E5%88%97/%E9%87%87%E5%9D%91%E8%AE%B0%E5%BD%95/">采坑记录</a><span class="category-list-count">4</span></li></ul></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/%E4%B8%AD%E9%97%B4%E4%BB%B6/">中间件</a><span class="category-list-count">9</span><ul class="category-list-child"><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/%E4%B8%AD%E9%97%B4%E4%BB%B6/Email/">Email</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/%E4%B8%AD%E9%97%B4%E4%BB%B6/Prometheus/">Prometheus</a><span class="category-list-count">5</span></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/%E4%B8%AD%E9%97%B4%E4%BB%B6/ZooKeeper/">ZooKeeper</a><span class="category-list-count">2</span></li></ul></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/%E5%9F%BA%E7%A1%80%E7%B3%BB%E5%88%97/">基础系列</a><span class="category-list-count">42</span><ul class="category-list-child"><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/%E5%9F%BA%E7%A1%80%E7%B3%BB%E5%88%97/AOP/">AOP</a><span class="category-list-count">6</span><ul class="category-list-child"><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/%E5%9F%BA%E7%A1%80%E7%B3%BB%E5%88%97/AOP/%E5%BA%94%E7%94%A8%E7%AF%87/">应用篇</a><span class="category-list-count">1</span></li></ul></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/%E5%9F%BA%E7%A1%80%E7%B3%BB%E5%88%97/Bean/">Bean</a><span class="category-list-count">16</span><ul class="category-list-child"><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/%E5%9F%BA%E7%A1%80%E7%B3%BB%E5%88%97/Bean/%E5%BA%94%E7%94%A8%E7%AF%87/">应用篇</a><span class="category-list-count">5</span></li></ul></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/%E5%9F%BA%E7%A1%80%E7%B3%BB%E5%88%97/SpEL/">SpEL</a><span class="category-list-count">1</span></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/%E5%9F%BA%E7%A1%80%E7%B3%BB%E5%88%97/%E4%BA%8B%E4%BB%B6/">事件</a><span class="category-list-count">1</span></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/%E5%9F%BA%E7%A1%80%E7%B3%BB%E5%88%97/%E5%9B%BD%E9%99%85%E5%8C%96/">国际化</a><span class="category-list-count">1</span></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/%E5%9F%BA%E7%A1%80%E7%B3%BB%E5%88%97/%E5%AE%9A%E6%97%B6%E5%99%A8/">定时器</a><span class="category-list-count">1</span><ul class="category-list-child"><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/%E5%9F%BA%E7%A1%80%E7%B3%BB%E5%88%97/%E5%AE%9A%E6%97%B6%E5%99%A8/%E5%BA%94%E7%94%A8%E7%AF%87/">应用篇</a><span class="category-list-count">1</span></li></ul></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/%E5%9F%BA%E7%A1%80%E7%B3%BB%E5%88%97/%E6%97%A5%E5%BF%97/">日志</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/%E5%9F%BA%E7%A1%80%E7%B3%BB%E5%88%97/%E8%B8%A9%E5%9D%91%E8%AE%B0%E5%BD%95/">踩坑记录</a><span class="category-list-count">1</span></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/%E5%9F%BA%E7%A1%80%E7%B3%BB%E5%88%97/%E9%85%8D%E7%BD%AE/">配置</a><span class="category-list-count">13</span><ul class="category-list-child"><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/%E5%9F%BA%E7%A1%80%E7%B3%BB%E5%88%97/%E9%85%8D%E7%BD%AE/%E5%BA%94%E7%94%A8%E7%AF%87/">应用篇</a><span class="category-list-count">1</span></li></ul></li></ul></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/%E6%90%9C%E7%B4%A2%E7%B3%BB%E5%88%97/">搜索系列</a><span class="category-list-count">8</span><ul class="category-list-child"><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/%E6%90%9C%E7%B4%A2%E7%B3%BB%E5%88%97/ElasticSearch/">ElasticSearch</a><span class="category-list-count">3</span></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/%E6%90%9C%E7%B4%A2%E7%B3%BB%E5%88%97/Solr/">Solr</a><span class="category-list-count">5</span><ul class="category-list-child"><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/%E6%90%9C%E7%B4%A2%E7%B3%BB%E5%88%97/Solr/%E9%87%87%E5%9D%91%E8%AE%B0%E5%BD%95/">采坑记录</a><span class="category-list-count">1</span></li></ul></li></ul></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/%E8%BF%90%E7%BB%B4%E7%B3%BB%E5%88%97/">运维系列</a><span class="category-list-count">1</span><ul class="category-list-child"><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringBoot/%E8%BF%90%E7%BB%B4%E7%B3%BB%E5%88%97/Docker/">Docker</a><span class="category-list-count">1</span></li></ul></li></ul></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringCloud/">SpringCloud</a><span class="category-list-count">2</span><ul class="category-list-child"><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringCloud/Eureka%E7%B3%BB%E5%88%97/">Eureka系列</a><span class="category-list-count">1</span></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringCloud/Feign%E7%B3%BB%E5%88%97/">Feign系列</a><span class="category-list-count">1</span><ul class="category-list-child"><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringCloud/Feign%E7%B3%BB%E5%88%97/%E9%87%87%E5%9D%91%E8%AE%B0%E5%BD%95/">采坑记录</a><span class="category-list-count">1</span></li></ul></li></ul></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/SpringSecurity/">SpringSecurity</a><span class="category-list-count">2</span></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/Spring%E6%BA%90%E7%A0%81/">Spring源码</a><span class="category-list-count">2</span><ul class="category-list-child"><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/Spring%E6%BA%90%E7%A0%81/%E6%89%A9%E5%B1%95%E7%82%B9/">扩展点</a><span class="category-list-count">2</span></li></ul></li><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/%E5%AE%9E%E6%88%98/">实战</a><span class="category-list-count">1</span><ul class="category-list-child"><li class="category-list-item"><a class="category-list-link" href="https://spring.hhui.top/spring-blog/categories/%E5%AE%9E%E6%88%98/%E5%BA%94%E7%94%A8%E7%AF%87/">应用篇</a><span class="category-list-count">1</span></li></ul></li></ul>
+        </div>
+    </div>
+
+    
+        
+    <div class="widget-wrap">
+        <h3 class="widget-title">归档</h3>
+        <div class="widget">
+            <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2022/12/">十二月 2022</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2022/10/">十月 2022</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2022/09/">九月 2022</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2022/08/">八月 2022</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2022/07/">七月 2022</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2022/04/">四月 2022</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2022/03/">三月 2022</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2022/01/">一月 2022</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2021/12/">十二月 2021</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2021/11/">十一月 2021</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2021/10/">十月 2021</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2021/09/">九月 2021</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2021/08/">八月 2021</a><span class="archive-list-count">8</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2021/07/">七月 2021</a><span class="archive-list-count">5</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2021/06/">六月 2021</a><span class="archive-list-count">5</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2021/05/">五月 2021</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2021/04/">四月 2021</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2021/03/">三月 2021</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2021/02/">二月 2021</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2021/01/">一月 2021</a><span class="archive-list-count">5</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2020/12/">十二月 2020</a><span class="archive-list-count">8</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2020/10/">十月 2020</a><span class="archive-list-count">5</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2020/09/">九月 2020</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2020/08/">八月 2020</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2020/07/">七月 2020</a><span class="archive-list-count">15</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2020/06/">六月 2020</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2020/05/">五月 2020</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2020/04/">四月 2020</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2020/03/">三月 2020</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2020/02/">二月 2020</a><span class="archive-list-count">7</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2020/01/">一月 2020</a><span class="archive-list-count">8</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2019/12/">十二月 2019</a><span class="archive-list-count">11</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2019/11/">十一月 2019</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2019/10/">十月 2019</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2019/09/">九月 2019</a><span class="archive-list-count">5</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2019/08/">八月 2019</a><span class="archive-list-count">6</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2019/07/">七月 2019</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2019/06/">六月 2019</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2019/05/">五月 2019</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2019/04/">四月 2019</a><span class="archive-list-count">5</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2019/03/">三月 2019</a><span class="archive-list-count">10</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2019/02/">二月 2019</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2019/01/">一月 2019</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2018/12/">十二月 2018</a><span class="archive-list-count">5</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2018/11/">十一月 2018</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2018/10/">十月 2018</a><span class="archive-list-count">11</span></li><li class="archive-list-item"><a class="archive-list-link" href="https://spring.hhui.top/spring-blog/archives/2018/09/">九月 2018</a><span class="archive-list-count">8</span></li></ul>
+        </div>
+    </div>
+
+    
+        
+    <div class="widget-wrap">
+        <h3 class="widget-title">标签</h3>
+        <div class="widget">
+            <ul class="tag-list"><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/AOP/">AOP</a><span class="tag-list-count">6</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/AsyncRestTemplate/">AsyncRestTemplate</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/AutoConfigureOrder/">AutoConfigureOrder</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/Bean/">Bean</a><span class="tag-list-count">17</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/Beetl/">Beetl</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/Condition/">Condition</a><span class="tag-list-count">4</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/Config/">Config</a><span class="tag-list-count">9</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/ConfigurationProperties/">ConfigurationProperties</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/DB/">DB</a><span class="tag-list-count">14</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/DataSourceInitializer/">DataSourceInitializer</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/DeferredResult/">DeferredResult</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/Docker/">Docker</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/ElasticSearch/">ElasticSearch</a><span class="tag-list-count">3</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/Email/">Email</a><span class="tag-list-count">2</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/Eureka/">Eureka</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/EventListener/">EventListener</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/Feign/">Feign</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/Filter/">Filter</a><span class="tag-list-count">3</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/Freemaker/">Freemaker</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/Interceptor/">Interceptor</a><span class="tag-list-count">2</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/JPA/">JPA</a><span class="tag-list-count">7</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/JPL/">JPL</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/JdbcTemplate/">JdbcTemplate</a><span class="tag-list-count">5</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/Jooq/">Jooq</a><span class="tag-list-count">10</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/Listener/">Listener</a><span class="tag-list-count">2</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/Log/">Log</a><span class="tag-list-count">2</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/Maven/">Maven</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/Mongo/">Mongo</a><span class="tag-list-count">4</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/MySql/">MySql</a><span class="tag-list-count">5</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/Mybatis/">Mybatis</a><span class="tag-list-count">20</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/Order/">Order</a><span class="tag-list-count">3</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/Prometheus/">Prometheus</a><span class="tag-list-count">5</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/PropertySource/">PropertySource</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/RabbitMq/">RabbitMq</a><span class="tag-list-count">5</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/Redis/">Redis</a><span class="tag-list-count">19</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/RedisTemplate/">RedisTemplate</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/RequestCondition/">RequestCondition</a><span class="tag-list-count">2</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/RequestMappingHandlerMapping/">RequestMappingHandlerMapping</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/Resin/">Resin</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/RestTemplate/">RestTemplate</a><span class="tag-list-count">12</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/SPI/">SPI</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/SSE/">SSE</a><span class="tag-list-count">2</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/Scheduled/">Scheduled</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/Servlet/">Servlet</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/Solr/">Solr</a><span class="tag-list-count">5</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/SpEL/">SpEL</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/Spring-Extention/">Spring Extention</a><span class="tag-list-count">2</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/SpringMVC/">SpringMVC</a><span class="tag-list-count">2</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/SpringSecurity/">SpringSecurity</a><span class="tag-list-count">2</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/Thymeleaf/">Thymeleaf</a><span class="tag-list-count">2</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/TransactionTemplate/">TransactionTemplate</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/Transactional/">Transactional</a><span class="tag-list-count">4</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/Validation/">Validation</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/Value/">Value</a><span class="tag-list-count">4</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/WEB/">WEB</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/Web/">Web</a><span class="tag-list-count">11</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/WebAsyncTask/">WebAsyncTask</a><span class="tag-list-count">2</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/WebClient/">WebClient</a><span class="tag-list-count">9</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/WebFlux/">WebFlux</a><span class="tag-list-count">4</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/WebSocket/">WebSocket</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/ZooKeeper/">ZooKeeper</a><span class="tag-list-count">2</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/gzip/">gzip</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/h2dabase/">h2dabase</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/response/">response</a><span class="tag-list-count">3</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/value/">value</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/xml/">xml</a><span class="tag-list-count">3</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/%E4%B8%AD%E6%96%87%E4%B9%B1%E7%A0%81/">中文乱码</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/%E4%BA%8B%E5%8A%A1/">事务</a><span class="tag-list-count">5</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81/">分布式锁</a><span class="tag-list-count">3</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/%E5%8F%91%E5%B8%83%E8%AE%A2%E9%98%85/">发布订阅</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/%E5%9B%BD%E9%99%85%E5%8C%96/">国际化</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/%E5%A4%9A%E6%95%B0%E6%8D%AE%E6%BA%90/">多数据源</a><span class="tag-list-count">2</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/%E5%BA%94%E7%94%A8/">应用</a><span class="tag-list-count">10</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/%E5%BC%82%E5%B8%B8%E5%A4%84%E7%90%86/">异常处理</a><span class="tag-list-count">2</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/%E6%89%A9%E5%B1%95%E7%82%B9/">扩展点</a><span class="tag-list-count">2</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/%E6%A8%A1%E6%9D%BF%E5%BC%95%E6%93%8E/">模板引擎</a><span class="tag-list-count">3</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/%E6%B3%A8%E5%86%8C%E4%B8%AD%E5%BF%83/">注册中心</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/%E8%AF%B7%E6%B1%82%E5%8F%82%E6%95%B0/">请求参数</a><span class="tag-list-count">5</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/%E8%AF%BB%E6%95%B0%E6%8D%AE%E6%BA%90/">读数据源</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/%E9%87%8D%E5%AE%9A%E5%90%91/">重定向</a><span class="tag-list-count">1</span></li><li class="tag-list-item"><a class="tag-list-link" href="https://spring.hhui.top/spring-blog/tags/%E9%9D%99%E6%80%81%E8%B5%84%E6%BA%90/">静态资源</a><span class="tag-list-count">2</span></li></ul>
+        </div>
+    </div>
+
+    
+        
+    <div class="widget-wrap">
+        <h3 class="widget-title">标签云</h3>
+        <div class="widget tagcloud">
+            <a href="https://spring.hhui.top/spring-blog/tags/AOP/" style="font-size: 13.57px;">AOP</a> <a href="https://spring.hhui.top/spring-blog/tags/AsyncRestTemplate/" style="font-size: 10px;">AsyncRestTemplate</a> <a href="https://spring.hhui.top/spring-blog/tags/AutoConfigureOrder/" style="font-size: 10px;">AutoConfigureOrder</a> <a href="https://spring.hhui.top/spring-blog/tags/Bean/" style="font-size: 18.57px;">Bean</a> <a href="https://spring.hhui.top/spring-blog/tags/Beetl/" style="font-size: 10px;">Beetl</a> <a href="https://spring.hhui.top/spring-blog/tags/Condition/" style="font-size: 12.14px;">Condition</a> <a href="https://spring.hhui.top/spring-blog/tags/Config/" style="font-size: 15px;">Config</a> <a href="https://spring.hhui.top/spring-blog/tags/ConfigurationProperties/" style="font-size: 10px;">ConfigurationProperties</a> <a href="https://spring.hhui.top/spring-blog/tags/DB/" style="font-size: 17.86px;">DB</a> <a href="https://spring.hhui.top/spring-blog/tags/DataSourceInitializer/" style="font-size: 10px;">DataSourceInitializer</a> <a href="https://spring.hhui.top/spring-blog/tags/DeferredResult/" style="font-size: 10px;">DeferredResult</a> <a href="https://spring.hhui.top/spring-blog/tags/Docker/" style="font-size: 10px;">Docker</a> <a href="https://spring.hhui.top/spring-blog/tags/ElasticSearch/" style="font-size: 11.43px;">ElasticSearch</a> <a href="https://spring.hhui.top/spring-blog/tags/Email/" style="font-size: 10.71px;">Email</a> <a href="https://spring.hhui.top/spring-blog/tags/Eureka/" style="font-size: 10px;">Eureka</a> <a href="https://spring.hhui.top/spring-blog/tags/EventListener/" style="font-size: 10px;">EventListener</a> <a href="https://spring.hhui.top/spring-blog/tags/Feign/" style="font-size: 10px;">Feign</a> <a href="https://spring.hhui.top/spring-blog/tags/Filter/" style="font-size: 11.43px;">Filter</a> <a href="https://spring.hhui.top/spring-blog/tags/Freemaker/" style="font-size: 10px;">Freemaker</a> <a href="https://spring.hhui.top/spring-blog/tags/Interceptor/" style="font-size: 10.71px;">Interceptor</a> <a href="https://spring.hhui.top/spring-blog/tags/JPA/" style="font-size: 14.29px;">JPA</a> <a href="https://spring.hhui.top/spring-blog/tags/JPL/" style="font-size: 10px;">JPL</a> <a href="https://spring.hhui.top/spring-blog/tags/JdbcTemplate/" style="font-size: 12.86px;">JdbcTemplate</a> <a href="https://spring.hhui.top/spring-blog/tags/Jooq/" style="font-size: 15.71px;">Jooq</a> <a href="https://spring.hhui.top/spring-blog/tags/Listener/" style="font-size: 10.71px;">Listener</a> <a href="https://spring.hhui.top/spring-blog/tags/Log/" style="font-size: 10.71px;">Log</a> <a href="https://spring.hhui.top/spring-blog/tags/Maven/" style="font-size: 10px;">Maven</a> <a href="https://spring.hhui.top/spring-blog/tags/Mongo/" style="font-size: 12.14px;">Mongo</a> <a href="https://spring.hhui.top/spring-blog/tags/MySql/" style="font-size: 12.86px;">MySql</a> <a href="https://spring.hhui.top/spring-blog/tags/Mybatis/" style="font-size: 20px;">Mybatis</a> <a href="https://spring.hhui.top/spring-blog/tags/Order/" style="font-size: 11.43px;">Order</a> <a href="https://spring.hhui.top/spring-blog/tags/Prometheus/" style="font-size: 12.86px;">Prometheus</a> <a href="https://spring.hhui.top/spring-blog/tags/PropertySource/" style="font-size: 10px;">PropertySource</a> <a href="https://spring.hhui.top/spring-blog/tags/RabbitMq/" style="font-size: 12.86px;">RabbitMq</a> <a href="https://spring.hhui.top/spring-blog/tags/Redis/" style="font-size: 19.29px;">Redis</a> <a href="https://spring.hhui.top/spring-blog/tags/RedisTemplate/" style="font-size: 10px;">RedisTemplate</a> <a href="https://spring.hhui.top/spring-blog/tags/RequestCondition/" style="font-size: 10.71px;">RequestCondition</a> <a href="https://spring.hhui.top/spring-blog/tags/RequestMappingHandlerMapping/" style="font-size: 10px;">RequestMappingHandlerMapping</a> <a href="https://spring.hhui.top/spring-blog/tags/Resin/" style="font-size: 10px;">Resin</a> <a href="https://spring.hhui.top/spring-blog/tags/RestTemplate/" style="font-size: 17.14px;">RestTemplate</a> <a href="https://spring.hhui.top/spring-blog/tags/SPI/" style="font-size: 10px;">SPI</a> <a href="https://spring.hhui.top/spring-blog/tags/SSE/" style="font-size: 10.71px;">SSE</a> <a href="https://spring.hhui.top/spring-blog/tags/Scheduled/" style="font-size: 10px;">Scheduled</a> <a href="https://spring.hhui.top/spring-blog/tags/Servlet/" style="font-size: 10px;">Servlet</a> <a href="https://spring.hhui.top/spring-blog/tags/Solr/" style="font-size: 12.86px;">Solr</a> <a href="https://spring.hhui.top/spring-blog/tags/SpEL/" style="font-size: 10px;">SpEL</a> <a href="https://spring.hhui.top/spring-blog/tags/Spring-Extention/" style="font-size: 10.71px;">Spring Extention</a> <a href="https://spring.hhui.top/spring-blog/tags/SpringMVC/" style="font-size: 10.71px;">SpringMVC</a> <a href="https://spring.hhui.top/spring-blog/tags/SpringSecurity/" style="font-size: 10.71px;">SpringSecurity</a> <a href="https://spring.hhui.top/spring-blog/tags/Thymeleaf/" style="font-size: 10.71px;">Thymeleaf</a> <a href="https://spring.hhui.top/spring-blog/tags/TransactionTemplate/" style="font-size: 10px;">TransactionTemplate</a> <a href="https://spring.hhui.top/spring-blog/tags/Transactional/" style="font-size: 12.14px;">Transactional</a> <a href="https://spring.hhui.top/spring-blog/tags/Validation/" style="font-size: 10px;">Validation</a> <a href="https://spring.hhui.top/spring-blog/tags/Value/" style="font-size: 12.14px;">Value</a> <a href="https://spring.hhui.top/spring-blog/tags/WEB/" style="font-size: 10px;">WEB</a> <a href="https://spring.hhui.top/spring-blog/tags/Web/" style="font-size: 16.43px;">Web</a> <a href="https://spring.hhui.top/spring-blog/tags/WebAsyncTask/" style="font-size: 10.71px;">WebAsyncTask</a> <a href="https://spring.hhui.top/spring-blog/tags/WebClient/" style="font-size: 15px;">WebClient</a> <a href="https://spring.hhui.top/spring-blog/tags/WebFlux/" style="font-size: 12.14px;">WebFlux</a> <a href="https://spring.hhui.top/spring-blog/tags/WebSocket/" style="font-size: 10px;">WebSocket</a> <a href="https://spring.hhui.top/spring-blog/tags/ZooKeeper/" style="font-size: 10.71px;">ZooKeeper</a> <a href="https://spring.hhui.top/spring-blog/tags/gzip/" style="font-size: 10px;">gzip</a> <a href="https://spring.hhui.top/spring-blog/tags/h2dabase/" style="font-size: 10px;">h2dabase</a> <a href="https://spring.hhui.top/spring-blog/tags/response/" style="font-size: 11.43px;">response</a> <a href="https://spring.hhui.top/spring-blog/tags/value/" style="font-size: 10px;">value</a> <a href="https://spring.hhui.top/spring-blog/tags/xml/" style="font-size: 11.43px;">xml</a> <a href="https://spring.hhui.top/spring-blog/tags/%E4%B8%AD%E6%96%87%E4%B9%B1%E7%A0%81/" style="font-size: 10px;">中文乱码</a> <a href="https://spring.hhui.top/spring-blog/tags/%E4%BA%8B%E5%8A%A1/" style="font-size: 12.86px;">事务</a> <a href="https://spring.hhui.top/spring-blog/tags/%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81/" style="font-size: 11.43px;">分布式锁</a> <a href="https://spring.hhui.top/spring-blog/tags/%E5%8F%91%E5%B8%83%E8%AE%A2%E9%98%85/" style="font-size: 10px;">发布订阅</a> <a href="https://spring.hhui.top/spring-blog/tags/%E5%9B%BD%E9%99%85%E5%8C%96/" style="font-size: 10px;">国际化</a> <a href="https://spring.hhui.top/spring-blog/tags/%E5%A4%9A%E6%95%B0%E6%8D%AE%E6%BA%90/" style="font-size: 10.71px;">多数据源</a> <a href="https://spring.hhui.top/spring-blog/tags/%E5%BA%94%E7%94%A8/" style="font-size: 15.71px;">应用</a> <a href="https://spring.hhui.top/spring-blog/tags/%E5%BC%82%E5%B8%B8%E5%A4%84%E7%90%86/" style="font-size: 10.71px;">异常处理</a> <a href="https://spring.hhui.top/spring-blog/tags/%E6%89%A9%E5%B1%95%E7%82%B9/" style="font-size: 10.71px;">扩展点</a> <a href="https://spring.hhui.top/spring-blog/tags/%E6%A8%A1%E6%9D%BF%E5%BC%95%E6%93%8E/" style="font-size: 11.43px;">模板引擎</a> <a href="https://spring.hhui.top/spring-blog/tags/%E6%B3%A8%E5%86%8C%E4%B8%AD%E5%BF%83/" style="font-size: 10px;">注册中心</a> <a href="https://spring.hhui.top/spring-blog/tags/%E8%AF%B7%E6%B1%82%E5%8F%82%E6%95%B0/" style="font-size: 12.86px;">请求参数</a> <a href="https://spring.hhui.top/spring-blog/tags/%E8%AF%BB%E6%95%B0%E6%8D%AE%E6%BA%90/" style="font-size: 10px;">读数据源</a> <a href="https://spring.hhui.top/spring-blog/tags/%E9%87%8D%E5%AE%9A%E5%90%91/" style="font-size: 10px;">重定向</a> <a href="https://spring.hhui.top/spring-blog/tags/%E9%9D%99%E6%80%81%E8%B5%84%E6%BA%90/" style="font-size: 10.71px;">静态资源</a>
+        </div>
+    </div>
+
+    
+        <!--
+
+    <div class="widget-wrap widget-list">
+        <h3 class="widget-title">链接</h3>
+        <div class="widget">
+            <ul>
+                
+                    <li>
+                        <a href="//blog.hhui.top/">一灰灰Blog</a>
+                    </li>
+                
+                    <li>
+                        <a href="//juejin.im/user/5a2a4b095188252ae93adbbf/posts">掘金</a>
+                    </li>
+                
+                    <li>
+                        <a href="//my.oschina.net/u/566591">开源中国</a>
+                    </li>
+                
+                    <li>
+                        <a href="//blog.csdn.net/liuyueyi25">CSDN</a>
+                    </li>
+                
+                    <li>
+                        <a href="//www.jianshu.com/u/5902ab08e670">简书</a>
+                    </li>
+                
+                    <li>
+                        <a href="//cloud.tencent.com/developer/column/1847">云+</a>
+                    </li>
+                
+                    <li>
+                        <a href="//www.toutiao.com/c/user/69862071663/#mid=1579653107239950">头条</a>
+                    </li>
+                
+                    <li>
+                        <a href="//github.com/liuyueyi">GitHub</a>
+                    </li>
+                
+                    <li>
+                        <a href="//gitee.com/liuyueyi">Gitee</a>
+                    </li>
+                
+            </ul>
+        </div>
+    </div>
+
+-->
+
+    
+    <div id="toTop" class="fas fa-angle-up"></div>
+</aside>
+
+            
+        </div>
+        <footer id="footer">
+    <div class="outer">
+        <div class="foot-column">
+            <!--关注我们-->
+            <div class="widget-wrap widget-list">
+                <h3 class="widget-title">更多平台</h3>
+                <div class="widget">
+                    <ul>
+                        
+                            <li>
+                                <a href="https://blog.hhui.top/">一灰灰Blog</a>
+                            </li>
+                        
+                            <li>
+                                <a href="https://juejin.im/user/5a2a4b095188252ae93adbbf/posts">掘金</a>
+                            </li>
+                        
+                            <li>
+                                <a href="https://my.oschina.net/u/566591">开源中国</a>
+                            </li>
+                        
+                            <li>
+                                <a href="https://blog.csdn.net/liuyueyi25">CSDN</a>
+                            </li>
+                        
+                            <li>
+                                <a href="https://www.jianshu.com/u/5902ab08e670">简书</a>
+                            </li>
+                        
+                            <li>
+                                <a href="https://cloud.tencent.com/developer/column/1847">云+</a>
+                            </li>
+                        
+                            <li>
+                                <a href="https://www.toutiao.com/c/user/69862071663/#mid=1579653107239950">头条</a>
+                            </li>
+                        
+                            <li>
+                                <a href="https://github.com/liuyueyi">GitHub</a>
+                            </li>
+                        
+                            <li>
+                                <a href="https://gitee.com/liuyueyi">Gitee</a>
+                            </li>
+                        
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="foot-column">
+            <!--联系合作-->
+            <div class="widget-wrap widget-list">
+                <h3 class="widget-title">一灰灰Blog</h3>
+                <div class="widget">
+                    <ul>
+                        
+                            <li>
+                                <a href="https://spring.hhui.top/spring-blog/2020/02/19/200219-SpringBoot%E7%B3%BB%E5%88%97%E6%95%99%E7%A8%8B%E4%B9%8BRabbitMq%E6%B6%88%E6%81%AF%E7%A1%AE%E8%AE%A4%E6%9C%BA%E5%88%B6-%E4%BA%8B%E5%8A%A1%E7%9A%84%E4%BD%BF%E7%94%A8%E5%A7%BF%E5%8A%BF/#">QQ : 3302797840</a>
+                            </li>
+                        
+                            <li>
+                                <a href="https://spring.hhui.top/spring-blog/2020/02/19/200219-SpringBoot%E7%B3%BB%E5%88%97%E6%95%99%E7%A8%8B%E4%B9%8BRabbitMq%E6%B6%88%E6%81%AF%E7%A1%AE%E8%AE%A4%E6%9C%BA%E5%88%B6-%E4%BA%8B%E5%8A%A1%E7%9A%84%E4%BD%BF%E7%94%A8%E5%A7%BF%E5%8A%BF/#">微信 : liuyueyi25</a>
+                            </li>
+                        
+                            <li>
+                                <a href="https://spring.hhui.top/spring-blog/2020/02/19/200219-SpringBoot%E7%B3%BB%E5%88%97%E6%95%99%E7%A8%8B%E4%B9%8BRabbitMq%E6%B6%88%E6%81%AF%E7%A1%AE%E8%AE%A4%E6%9C%BA%E5%88%B6-%E4%BA%8B%E5%8A%A1%E7%9A%84%E4%BD%BF%E7%94%A8%E5%A7%BF%E5%8A%BF/#">邮箱 : bangzewu@126.com</a>
+                            </li>
+                        
+                            <li>
+                                <a href="https://spring.hhui.top/spring-blog/2020/02/19/200219-SpringBoot%E7%B3%BB%E5%88%97%E6%95%99%E7%A8%8B%E4%B9%8BRabbitMq%E6%B6%88%E6%81%AF%E7%A1%AE%E8%AE%A4%E6%9C%BA%E5%88%B6-%E4%BA%8B%E5%8A%A1%E7%9A%84%E4%BD%BF%E7%94%A8%E5%A7%BF%E5%8A%BF/#">微博 : 一灰灰blog</a>
+                            </li>
+                        
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="foot-column">
+            <div class="widget-wrap widget-list">
+                <h3 class="widget-title">友情链接</h3>
+                <div class="widget">
+                    <ul>
+                        
+                            <span class="label">
+                                <a target="_blank" href="https://zweb.hhui.top/">zweb多媒体工具页</a> <br>
+                            </span>
+                        
+                            <span class="label">
+                                <a target="_blank" href="https://mweb.hhui.top/">mweb古诗选</a> <br>
+                            </span>
+                        
+                            <span class="label">
+                                <a target="_blank" href="https://news.hhui.top/">每日早报</a> <br>
+                            </span>
+                        
+                            <span class="label">
+                                <a target="_blank" href="https://hhui.top/">一灰灰站点</a> <br>
+                            </span>
+                        
+                            <span class="label">
+                                <a target="_blank" href="https://play.google.com/store/apps/details?id=com.yhh.zhongdian">终点阅读</a> <br>
+                            </span>
+                        
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="foot-column">
+            <div class="widget-wrap widget-list">
+                <h3 class="widget-title">公众号：一灰灰blog</h3>
+                <div class="widget">
+                 回复 <b style="color:red">加群</b> 来一起搞事情吧
+                
+                    <img style="width: 200px;" src="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/wx.jpg">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="footer-info" class="inner">
+            <span style="font-size:0.6em">
+                Powered by <a href="http://hexo.io/" target="_blank">Hexo</a>. Theme by <a href="http://github.com/ppoffice">PPOffice</a> 
+            </span>
+            <br>
+            <span style="margin:4px;font-size:1em">
+                © 2022 <a target="_blank" href="https://github.com/liuyueyi">一灰灰Blog</a> 版权所有 | <a href="http://www.beian.miit.gov.cn/" target="_blank">鄂ICP备18017282号</a>
+            </span>
+            <span style="margin:8px;font-size:1.2em">
+                <label id="self_count_cnt"><br>本站总访量: <span class="visit_cnt">862545</span> &nbsp;| 总访问人次: <span class="visit_cnt">138655</span> &nbsp;| 恭喜您为第 <span class="visit_cnt">138645</span>&nbsp; 访问者</label>
+            </span>
+            <script src="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/count.js.下载"></script>
+        </div>
+
+</footer>
+        
+    
+  <link rel="stylesheet" href="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/gitalk.css">
+  <script src="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/gitalk.min.js.下载"></script>
+
+	<script>
+	  const gitalk = new Gitalk({
+	    clientID: 'd3a2444c0eaa127ea7e7',
+	    clientSecret: '59204bedb04069285885aa689411743296eed498',
+	    repo: 'spring-boot-demo',
+	    owner: 'liuyueyi',
+	    admin: ['liuyueyi'],
+	    distractionFreeMode: false,
+	    id: 'Wed Feb 19 2020 11:30:53 GMT+0800'
+	  })
+	  gitalk.render('commentContainer')
+	</script>
+	
+
+
+
+    
+        <script src="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/lightgallery.min.js.下载"></script>
+        <script src="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/lg-thumbnail.min.js.下载"></script>
+        <script src="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/lg-pager.min.js.下载"></script>
+        <script src="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/lg-autoplay.min.js.下载"></script>
+        <script src="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/lg-fullscreen.min.js.下载"></script>
+        <script src="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/lg-zoom.min.js.下载"></script>
+        <script src="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/lg-hash.min.js.下载"></script>
+        <script src="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/lg-share.min.js.下载"></script>
+        <script src="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/lg-video.min.js.下载"></script>
+    
+    
+        <script src="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/jquery.justifiedGallery.min.js.下载"></script>
+    
+    
+        <script type="text/x-mathjax-config;executed=true">
+            MathJax.Hub.Config({ tex2jax: { inlineMath: [['$','$'], ['\\(','\\)']] } });
+        </script>
+        <script src="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/MathJax.js.下载"></script>
+    
+
+
+
+<!-- Custom Scripts -->
+<script src="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/main.js.下载"></script>
+
+    </div><div class="ins-search">
+    <div class="ins-search-mask"></div>
+    <div class="ins-search-container">
+        <div class="ins-input-wrapper">
+            <input type="text" class="ins-search-input" placeholder="想要查找什么...">
+            <span class="ins-close ins-selectable"><i class="fas fa-times-circle"></i></span>
+        </div>
+        <div class="ins-section-wrapper">
+            <div class="ins-section-container"><section class="ins-section"><header class="ins-section-header">文章</header><div class="ins-selectable ins-search-item" data-url="/spring-blog/2022/12/21/221221-SpringBoot系列之数据库初始化-DataSourceInitializer方式/"><header><i class="fas fa-file" style="padding-right: 5px;"></i>【DB系列】数据库初始化-DataSourceInitializer方式</header><p class="ins-search-preview">前面介绍的两篇基于配置方式的数据库初始化方式，使用起来非常简单，但是有一个非常明显的问题，如何实现表结构存在时不再初始化，不存在时才执行？ 如果数据库也不存在，也需要初始化时创建，可行么？ 接下来介绍一下如何使用DataSourceInitializer来实现自主可控的数据初始化 I. 项目搭建1.</p></div><div class="ins-selectable ins-search-item" data-url="/spring-blog/2022/12/21/221221-SpringBoot系列之数据库初始化-jpa配置方式/"><header><i class="fas fa-file" style="padding-right: 5px;"></i>【DB系列】数据库初始化-jpa配置方式</header><p class="ins-search-preview">上一篇博文介绍如何使用spring.datasource来实现项目启动之后的数据库初始化，本文作为数据库初始化的第二篇，将主要介绍一下，如何使用spring.jpa的配置方式来实现相同的效果 I. 项目搭建1. 依赖首先搭建一个标准的SpringBoot项目工程，相关版本以及依赖如下 本项目借助Sp</p></div><div class="ins-selectable ins-search-item" data-url="/spring-blog/2022/12/21/221221-SpringBoot系列之数据库初始化-datasource配置方式/"><header><i class="fas fa-file" style="padding-right: 5px;"></i>【DB系列】数据库初始化-datasource配置方式</header><p class="ins-search-preview">在我们的日常业务开发过程中，如果有db的相关操作，通常我们是直接建立好对应的库表结构，并初始化对应的数据，即更常见的情况下是我们在已有表结构基础之下，进行开发；但是当我们是以项目形式工作时，更常见的做法是所有的库表结构变更、数据的初始、更新等都需要持有对应的sql变更，并保存在项目工程中，这也是使用</p></div><div class="ins-selectable ins-search-item" data-url="/spring-blog/2022/10/26/221026-Spring扩展点之自定义bean注册/"><header><i class="fas fa-file" style="padding-right: 5px;"></i>【扩展点】 自定义bean注册扩展机制BeanDefinitionRegistryPostProcessor</header><p class="ins-search-preview">接着上一篇容器刷新前的扩展点，我们继续往下走；接下来来到的就是bean的定义扩展处，它是在Spring容器刷新之后，应用的bean定义加载完成、实例化之前提供的切入点，主要是通过实现BeanDefinitionRegistryPostProcessor接口的两个方法，来实现自定义的bean定义，或者</p></div><div class="ins-selectable ins-search-item" data-url="/spring-blog/2022/09/27/220927-Spring扩展之容器刷新前回调ApplicationContextInitializer/"><header><i class="fas fa-file" style="padding-right: 5px;"></i>【扩展点】 容器刷新前回调ApplicationContextInitializer</header><p class="ins-search-preview">本文将作为Spring系列教程中源码版块的第一篇，整个源码系列将分为两部分进行介绍；单纯的源码解析，大概率是个吃力没人看的事情，因此我们将结合源码解析，一个是学习下别人的优秀设计，一个是站在源码的角度看一下我们除了日常的CURD之外，还可以干些啥 在Spring的启动过程中，一系列的操作步骤中，提供</p></div></section><section class="ins-section"><header class="ins-section-header">页面</header><div class="ins-selectable ins-search-item" data-url="/spring-blog/SpringCloud/index.html"><header><i class="fas fa-file" style="padding-right: 5px;"></i>SpringCloud</header><p class="ins-search-preview">记录SpringCloud相关的所有技术文章，持续更新中 I. 使用篇… II. 采坑篇常在河边走，哪能不湿鞋，特此记录实际使用过程中遇到的各种鬼畜的坑 190306-SpringCloud之Feign请求参数包装异常问题定位</p></div><div class="ins-selectable ins-search-item" data-url="/spring-blog/SpringSecurity/index.html"><header><i class="fas fa-file" style="padding-right: 5px;"></i>SpringSecurity系列文章</header><p class="ins-search-preview">记录SpringSecurity相关的所有技术文章，分类汇总如下，持续更新中 简单抽象的说一下SpringSecurity它的定义 很🐂的认证和访问权限校验框架 那么具体能干嘛？ 用户登录认证：用户名+密码登录，确定用户身份 用户访问鉴权（常见的ACL访问控制列表，RBAC角色访问控制）：判定是否</p></div><div class="ins-selectable ins-search-item" data-url="/spring-blog/about/index.html"><header><i class="fas fa-file" style="padding-right: 5px;"></i>关于我</header><p class="ins-search-preview">一灰灰Blog本人的博客大部分命名为“一灰灰Blog”，主职服务器开发 常用技术栈： Java &amp; Spring &amp; SpringBoot &amp; ibatis &amp; redis &amp; mysql 相关网站 zweb: 多媒体工具网站 mweb: 中华诗词H5页 z+</p></div><div class="ins-selectable ins-search-item" data-url="/spring-blog/SpringBoot/index.html"><header><i class="fas fa-file" style="padding-right: 5px;"></i>SpringBoot系列文章</header><p class="ins-search-preview">记录SpringBoot相关的所有技术文章，分类汇总如下，持续更新中 I. 基础篇1. 配置相关本节主要内容包括如何使用配置文件中的配置信息，配置文件中配置参数的内引用方式，刷新配置的数段以及配置变更的监听，配置参数的优先级问题，多环境中如何选用配置文件等相关内容 @一灰灰Blogblog.hhui</p></div></section><section class="ins-section"><header class="ins-section-header">分类</header><div class="ins-selectable ins-search-item" data-url="http://spring.hhui.top/categories/SpringBoot/"><header><i class="fas fa-folder" style="padding-right: 5px;"></i>SpringBoot<span class="ins-slug">SpringBoot</span></header></div><div class="ins-selectable ins-search-item" data-url="http://spring.hhui.top/categories/SpringBoot/DB系列/"><header><i class="fas fa-folder" style="padding-right: 5px;"></i>DB系列<span class="ins-slug">SpringBoot/DB系列</span></header></div><div class="ins-selectable ins-search-item" data-url="http://spring.hhui.top/categories/SpringBoot/DB系列/初始化/"><header><i class="fas fa-folder" style="padding-right: 5px;"></i>初始化<span class="ins-slug">SpringBoot/DB系列/初始化</span></header></div><div class="ins-selectable ins-search-item" data-url="http://spring.hhui.top/categories/Spring源码/"><header><i class="fas fa-folder" style="padding-right: 5px;"></i>Spring源码<span class="ins-slug">Spring源码</span></header></div><div class="ins-selectable ins-search-item" data-url="http://spring.hhui.top/categories/Spring源码/扩展点/"><header><i class="fas fa-folder" style="padding-right: 5px;"></i>扩展点<span class="ins-slug">Spring源码/扩展点</span></header></div></section><section class="ins-section"><header class="ins-section-header">标签</header><div class="ins-selectable ins-search-item" data-url="http://spring.hhui.top/tags/MySql/"><header><i class="fas fa-tag" style="padding-right: 5px;"></i>MySql<span class="ins-slug">MySql</span></header></div><div class="ins-selectable ins-search-item" data-url="http://spring.hhui.top/tags/DataSourceInitializer/"><header><i class="fas fa-tag" style="padding-right: 5px;"></i>DataSourceInitializer<span class="ins-slug">DataSourceInitializer</span></header></div><div class="ins-selectable ins-search-item" data-url="http://spring.hhui.top/tags/扩展点/"><header><i class="fas fa-tag" style="padding-right: 5px;"></i>扩展点<span class="ins-slug">扩展点</span></header></div><div class="ins-selectable ins-search-item" data-url="http://spring.hhui.top/tags/Spring-Extention/"><header><i class="fas fa-tag" style="padding-right: 5px;"></i>Spring Extention<span class="ins-slug">Spring-Extention</span></header></div><div class="ins-selectable ins-search-item" data-url="http://spring.hhui.top/tags/应用/"><header><i class="fas fa-tag" style="padding-right: 5px;"></i>应用<span class="ins-slug">应用</span></header></div></section></div>
+        </div>
+    </div>
+</div><ins class="adsbygoogle adsbygoogle-noablate" data-adsbygoogle-status="done" style="display: none !important;" data-ad-status="unfilled"><div id="aswift_0_host" tabindex="0" title="Advertisement" aria-label="Advertisement" style="border: none; height: 0px; width: 0px; margin: 0px; padding: 0px; position: relative; visibility: visible; background-color: transparent; display: inline-block;"><iframe id="aswift_0" name="aswift_0" style="left:0;position:absolute;top:0;border:0;width:undefinedpx;height:undefinedpx;" sandbox="allow-forms allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts allow-top-navigation-by-user-activation" frameborder="0" marginwidth="0" marginheight="0" vspace="0" hspace="0" allowtransparency="true" scrolling="no" src="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/ads(1).html" data-google-container-id="a!1" data-load-complete="true"></iframe></div></ins>
+
+<ins class="adsbygoogle adsbygoogle-noablate" data-adsbygoogle-status="done" data-anchor-status="displayed" style="display: block; width: 100% !important; height: 129px !important; bottom: 0px; clear: none !important; float: none !important; left: 0px; margin: 0px !important; max-height: none !important; max-width: none !important; opacity: 1; overflow: visible !important; padding: 0px !important; position: fixed; right: auto !important; top: auto !important; vertical-align: baseline !important; visibility: visible !important; z-index: 2147483647; background: rgb(250, 250, 250) !important;" data-ad-status="filled" data-anchor-shown="true"><div class="grippy-host"></div><div id="aswift_3_host" tabindex="0" title="Advertisement" aria-label="Advertisement" style="border: none !important; height: 124px !important; width: 100% !important; margin: 0px !important; padding: 0px !important; position: relative !important; visibility: visible !important; background-color: transparent !important; display: inline-block !important; inset: auto !important; clear: none !important; float: none !important; max-height: none !important; max-width: none !important; opacity: 1 !important; overflow: visible !important; vertical-align: baseline !important; z-index: auto !important;"><iframe id="aswift_3" name="aswift_3" style="width: 1005px !important; height: 124px !important; display: block; margin: 0px auto;" sandbox="allow-forms allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts allow-top-navigation-by-user-activation" width="1005" height="124" frameborder="0" marginwidth="0" marginheight="0" vspace="0" hspace="0" allowtransparency="true" scrolling="no" src="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/zrt_lookup.html" data-google-container-id="a!4" data-google-query-id="CMTqh87Swv0CFZUmYAoddxcKeA" data-load-complete="true"></iframe></div></ins><ins class="adsbygoogle adsbygoogle-noablate" data-adsbygoogle-status="done" data-side-rail-status="displayed" style="display: block !important; margin: 0px !important; padding: 0px !important; position: fixed !important; left: 0px !important; top: 143px !important; z-index: 2147483647 !important; overflow: visible !important; opacity: 1 !important; transition: all 500ms ease-in 0s !important;" data-ad-status="filled"><div id="aswift_4_host" tabindex="0" title="Advertisement" aria-label="Advertisement" style="border: none; height: 600px; width: 120px; margin: 0px; padding: 0px; position: relative; visibility: visible; background-color: transparent; display: inline-block;"><iframe id="aswift_4" name="aswift_4" style="width:120px !IMPORTANT;height:600px !IMPORTANT" sandbox="allow-forms allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts allow-top-navigation-by-user-activation" width="120" height="600" frameborder="0" marginwidth="0" marginheight="0" vspace="0" hspace="0" allowtransparency="true" scrolling="no" src="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/zrt_lookup(1).html" data-google-container-id="a!5" data-google-query-id="CMXqh87Swv0CFZUmYAoddxcKeA" data-load-complete="true"></iframe></div><span class="left-side-rail-edge" style="background: rgb(250, 250, 250) !important; position: absolute !important; left: 0px !important; top: 600px !important; width: 120px !important; height: 5px !important; box-shadow: rgba(0, 0, 0, 0.5) 0px 1px 5px -1px, rgba(0, 0, 0, 0.1) 0px -1px 2px -1px !important;"></span><span class="left-side-rail-dismiss-btn" style="background: rgb(250, 250, 250) !important; position: absolute !important; left: 35px !important; right: 35px !important; top: 605px !important; box-shadow: rgba(0, 0, 0, 0.5) 0px 1px 5px -1px, rgba(0, 0, 0, 0.1) 0px -1px 2px -1px !important;"><svg style="position: absolute !important; top: 0px !important; display: block !important; width: 50px !important; height: 30px !important; margin-top: -5px !important; transform: none !important; pointer-events: initial !important;"><defs><filter id="left-side-rail-drop-shadow" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB"><fecomponenttransfer in="SourceAlpha" result="TransferredAlpha"><fefuncr type="discrete" tableValues="0.5"></fefuncr><fefuncg type="discrete" tableValues="0.5"></fefuncg><fefuncb type="discrete" tableValues="0.5"></fefuncb></fecomponenttransfer><fegaussianblur in="TransferredAlpha" stdDeviation="2"></fegaussianblur><feoffset dx="0" dy="0" result="offsetblur"></feoffset><femerge><femergenode></femergenode><femergenode in="SourceGraphic"></femergenode></femerge></filter></defs><path d="M5,5 L5,17 A8,8 0 0,0 13,25 L37,25 A8,8 0 0,0 45,17 L45,5 Z" stroke="#FAFAFA" stroke-width="1" fill="#FAFAFA" style="filter: url(&quot;#left-side-rail-drop-shadow&quot;);"></path><rect x="0" y="0" width="50" height="5" style="fill: rgb(250, 250, 250);"></rect><g stroke="#616161" stroke-width="2px" stroke-linecap="square"><line x1="18" y1="18" x2="25" y2="12"></line><line x1="25" y1="12" x2="32" y2="18"></line></g></svg></span></ins><ins class="adsbygoogle adsbygoogle-noablate" data-adsbygoogle-status="done" data-side-rail-status="displayed" style="display: block !important; margin: 0px !important; padding: 0px !important; position: fixed !important; right: 15px !important; top: 143px !important; z-index: 2147483647 !important; overflow: visible !important; opacity: 1 !important; transition: all 500ms ease-in 0s !important;" data-ad-status="filled"><div id="aswift_5_host" tabindex="0" title="Advertisement" aria-label="Advertisement" style="border: none; height: 600px; width: 120px; margin: 0px; padding: 0px; position: relative; visibility: visible; background-color: transparent; display: inline-block;"><iframe id="aswift_5" name="aswift_5" style="width:120px !IMPORTANT;height:600px !IMPORTANT" sandbox="allow-forms allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts allow-top-navigation-by-user-activation" width="120" height="600" frameborder="0" marginwidth="0" marginheight="0" vspace="0" hspace="0" allowtransparency="true" scrolling="no" src="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/zrt_lookup(2).html" data-google-container-id="a!6" data-google-query-id="CMbqh87Swv0CFZUmYAoddxcKeA" data-load-complete="true"></iframe></div><span class="right-side-rail-edge" style="background: rgb(250, 250, 250) !important; position: absolute !important; left: 0px !important; top: 600px !important; width: 120px !important; height: 5px !important; box-shadow: rgba(0, 0, 0, 0.5) 0px 1px 5px -1px, rgba(0, 0, 0, 0.1) 0px -1px 2px -1px !important;"></span><span class="right-side-rail-dismiss-btn" style="background: rgb(250, 250, 250) !important; position: absolute !important; left: 35px !important; right: 35px !important; top: 605px !important; box-shadow: rgba(0, 0, 0, 0.5) 0px 1px 5px -1px, rgba(0, 0, 0, 0.1) 0px -1px 2px -1px !important;"><svg style="position: absolute !important; top: 0px !important; display: block !important; width: 50px !important; height: 30px !important; margin-top: -5px !important; transform: none !important; pointer-events: initial !important;"><defs><filter id="right-side-rail-drop-shadow" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB"><fecomponenttransfer in="SourceAlpha" result="TransferredAlpha"><fefuncr type="discrete" tableValues="0.5"></fefuncr><fefuncg type="discrete" tableValues="0.5"></fefuncg><fefuncb type="discrete" tableValues="0.5"></fefuncb></fecomponenttransfer><fegaussianblur in="TransferredAlpha" stdDeviation="2"></fegaussianblur><feoffset dx="0" dy="0" result="offsetblur"></feoffset><femerge><femergenode></femergenode><femergenode in="SourceGraphic"></femergenode></femerge></filter></defs><path d="M5,5 L5,17 A8,8 0 0,0 13,25 L37,25 A8,8 0 0,0 45,17 L45,5 Z" stroke="#FAFAFA" stroke-width="1" fill="#FAFAFA" style="filter: url(&quot;#right-side-rail-drop-shadow&quot;);"></path><rect x="0" y="0" width="50" height="5" style="fill: rgb(250, 250, 250);"></rect><g stroke="#616161" stroke-width="2px" stroke-linecap="square"><line x1="18" y1="18" x2="25" y2="12"></line><line x1="25" y1="12" x2="32" y2="18"></line></g></svg></span></ins><iframe src="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/aframe.html" width="0" height="0" style="display: none;"></iframe></body><iframe id="google_esf" name="google_esf" src="./【MQ系列】RabbitMq消息确认机制_事务的使用姿势 _ 一灰灰Blog_files/zrt_lookup(3).html" style="display: none;"></iframe></html>

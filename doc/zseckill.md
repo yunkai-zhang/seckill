@@ -5422,6 +5422,15 @@ https://www.bilibili.com/video/BV1sf4y1L7KE?p=39&spm_id_from=pageDriver
 
   - 网友：Mysql中的B树就是B+树
 
+3，我总结：超卖问题就是
+
+- redis+lua脚本，一定要有lua脚本保证“check+decre”的原子性。[参考1](https://zhuanlan.zhihu.com/p/267802633)，[参考2](https://zhuanlan.zhihu.com/p/149920554)
+  - 我：第二篇文章和我项目做的思路一样，但是注意判断库存和减库存必须原子性才能不超卖
+- @transactional注解往数据库插值的代码块，并且数据库加唯一索引，这样插值失败会自动回滚
+  - spring事务（@Transactional）和数据库事务的联系，[参考1](https://blog.csdn.net/u013815546/article/details/55101708),[参考2（已保存到assets）](http://t.csdn.cn/9grtC)：
+    - Transaction注解的方法中，出现unchecked异常，就会把方法中所有操作回滚到事务开始时的状态；unchecked异常可能是数据库操作异常（参考2），也可能是与数据库操作无关的计算异常（参考1 参考2）；基本都是service层中需要操作数据库的方法要用到这个注解，这样不管unchecked异常是不是操作数据库导致的，都能回滚被注解的方法中对数据库的操作。
+    - 总结就是：spring事务内部（接@transactional注解的代码块）一般是包裹了数据库事务相关的代码，一般需要使用数据库的时候会用到spring事务；spring事务中出现unchecked异常会回滚整个spring事务，在回滚时数据库的操作也被还原了，相当于也回滚了数据库的事务。
+
 ### 页面优化总结
 
 略
@@ -5484,7 +5493,15 @@ https://www.bilibili.com/video/BV1sf4y1L7KE?p=39&spm_id_from=pageDriver
 
 3，网友：现在kafka最流行
 
-#### 安装
+4，阅读下面之前，先读博客，这几篇博客把rabbitmq的原理和各种用法都说的比较清晰了：
+
+- [【MQ系列】springboot + rabbitmq初体验（已存到assets/ref）](https://spring.hhui.top/spring-blog/2020/02/10/200210-SpringBoot%E7%B3%BB%E5%88%97%E6%95%99%E7%A8%8B%E4%B9%8BRabbitMq%E5%88%9D%E4%BD%93%E9%AA%8C/)
+- [【MQ系列】RabbitMq核心知识点小结（已存到assets/ref）](https://spring.hhui.top/spring-blog/2020/02/12/200212-SpringBoot%E7%B3%BB%E5%88%97%E6%95%99%E7%A8%8B%E4%B9%8BRabbitMq%E6%A0%B8%E5%BF%83%E7%9F%A5%E8%AF%86%E7%82%B9%E5%B0%8F%E7%BB%93/)
+- [【MQ系列】SprigBoot + RabbitMq发送消息基本使用姿势（已存到assets/ref）](https://spring.hhui.top/spring-blog/2020/02/18/200218-SpringBoot%E7%B3%BB%E5%88%97%E6%95%99%E7%A8%8B%E4%B9%8BRabbitMq%E5%8F%91%E9%80%81%E6%B6%88%E6%81%AF%E7%9A%84%E5%9F%BA%E6%9C%AC%E4%BD%BF%E7%94%A8%E5%A7%BF%E5%8A%BF/)
+- [【MQ系列】RabbitMq消息确认机制/事务的使用姿势（已存到assets/ref）](https://spring.hhui.top/spring-blog/2020/02/19/200219-SpringBoot%E7%B3%BB%E5%88%97%E6%95%99%E7%A8%8B%E4%B9%8BRabbitMq%E6%B6%88%E6%81%AF%E7%A1%AE%E8%AE%A4%E6%9C%BA%E5%88%B6-%E4%BA%8B%E5%8A%A1%E7%9A%84%E4%BD%BF%E7%94%A8%E5%A7%BF%E5%8A%BF/)
+- [【MQ系列】RabbitListener消费基本使用姿势介绍（已存到assets/ref）(我感觉重点)](https://spring.hhui.top/spring-blog/2020/03/18/200318-SpringBoot%E7%B3%BB%E5%88%97%E6%95%99%E7%A8%8B%E4%B9%8BRabbitListener%E6%B6%88%E8%B4%B9%E5%9F%BA%E6%9C%AC%E4%BD%BF%E7%94%A8%E5%A7%BF%E5%8A%BF%E4%BB%8B%E7%BB%8D/)
+  - 我：消费太慢了就用在@RabbitListener中用concurrency参数实现[多线程并行消费（已存入assets/ref）](http://t.csdn.cn/efhJN)，消费太快了就利用死信队列实现[延迟消费(已存入assets/ref)](https://blog.csdn.net/m0_64337991/article/details/122772729)
+    - rabbit死信队列专门讲解，[参考“RabbitMQ死信队列”(已存到assets/ref)](http://t.csdn.cn/HBXpY)，可以看到每个业务队列都绑定了一个死信交换机（可共享）和死信路由键（指导死信去往独占的死信队列）；本文还体现了自己针对业务问题抛出业务异常`RuntimeException("dead letter exception")`
 
 1，rabiitmq是erlang语言写的，所以两者有版本对应的关系：
 
@@ -5551,6 +5568,8 @@ https://www.bilibili.com/video/BV1sf4y1L7KE?p=39&spm_id_from=pageDriver
 4，确保Config类中注册好了队列 交换机 等等：
 
 ![image-20230220221410615](zseckill.assets/image-20230220221410615.png)
+
+- 我：这个rabbitTamplate也需要在配置类中用@bean注册一下。[参考](https://spring.hhui.top/spring-blog/2020/02/18/200218-SpringBoot%E7%B3%BB%E5%88%97%E6%95%99%E7%A8%8B%E4%B9%8BRabbitMq%E5%8F%91%E9%80%81%E6%B6%88%E6%81%AF%E7%9A%84%E5%9F%BA%E6%9C%AC%E4%BD%BF%E7%94%A8%E5%A7%BF%E5%8A%BF/)
 
 5，修改send函数，不再直接把消息发到队列，而是把消息发到交换机；注意要注入`RabbitTemplate`来通过java操作rabbitmq（类似java中要使用redis的话也要注入redisTemplate）：
 
@@ -5834,9 +5853,9 @@ https://www.bilibili.com/video/BV1sf4y1L7KE?p=39&spm_id_from=pageDriver
 
 1，现在项目基本就已经完成了，可以压测看看qps
 
-2，略
+2，结果：服务优化前qps是1356，服务优化后qps是2454
 
-- 结果：因为使用缓存和地址标记，不用频繁查找数据库，所以秒杀的qps可以飙升。
+- 原因：因为使用缓存和地址标记，不用频繁查找数据库，所以秒杀的qps可以飙升。
 
 ### Redis实现分布式锁
 
