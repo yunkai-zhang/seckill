@@ -10,7 +10,7 @@
 - 通过mybatis plus可以逆向生成代码到controller层；还可以继承swagger等。
 - RabittMQ做异步，队列缓冲，流量削峰；redis主要用作缓存。
 
-#### 课程介绍
+#### 项目介绍
 
 ![image-20220325201141834](zseckill.assets/image-20220325201141834.png)
 
